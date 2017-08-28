@@ -50,4 +50,4 @@ def make_dot(var, params=None):
                     dot.edge(str(id(t)), str(id(var)))
                     add_nodes(t)
     add_nodes(var.grad_fn)
-return dot
+    return dot
