@@ -1,0 +1,32 @@
+from skimage import color
+from PIL import color
+
+
+class toLAB(object):
+    
+    def __init__(self):
+        self.space = 'LAB'
+        
+    def __call__(self, image ):
+        lab_img = color.rgb2lab(np.array(img)/255.0)
+        return lab_img
+    
+class toRGB(object):
+    
+    def __init__(self):
+        self.space = 'RGB'
+        
+    def __call__(self, img):
+        npimg = np.transpose(img.numpy(), (1, 2, 0))
+        rgb_img = color.lab2rgb(np.array(npimg))
+        return rgb_img
+    
+class toTensor(object):
+    
+    def __init__(self):
+        self.space = 'RGB'
+        
+    def __call__(self, pic):
+        img = torch.from_numpy(pic.transpose((2, 0, 1)))
+        return img
+        
