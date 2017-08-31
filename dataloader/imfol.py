@@ -50,11 +50,8 @@ def accimage_loader(path):
 
 
 def default_loader(path):
-    from torchvision import get_image_backend
-    if get_image_backend() == 'accimage':
-        return accimage_loader(path)
-    else:
-        return pil_loader(path)
+   
+    return pil_loader(path)
 
 
 class ImageFolder(data.Dataset):
@@ -64,9 +61,6 @@ class ImageFolder(data.Dataset):
      
         imgs = make_dataset(root)
         
-        if len(imgs) == 0:
-            raise(RuntimeError("Found 0 images in subfolders of: " + root + "\n"
-                               "Supported image extensions are: " + ",".join(IMG_EXTENSIONS)))
 
         self.root = root
         self.imgs = imgs
@@ -81,7 +75,9 @@ class ImageFolder(data.Dataset):
         Returns:
             tuple: (image, target) where target is class_index of the target class.
         """
+        
         img_path, skg_path, seg_path = self.imgs[index]
+        
         img = self.loader(img_path)
         skg = self.loader(skg_path)
         

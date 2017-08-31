@@ -1,17 +1,24 @@
 from skimage import color
-from PIL import color
-
+from PIL import Image
+import numpy as np
+import torch
 
 class toLAB(object):
+    """
+    Transform to convert loaded into LAB space. 
+    """
     
     def __init__(self):
         self.space = 'LAB'
         
-    def __call__(self, image ):
-        lab_img = color.rgb2lab(np.array(img)/255.0)
-        return lab_img
+    def __call__(self, image):
+        lab_image = color.rgb2lab(np.array(image)/255.0)
+        return lab_image
     
 class toRGB(object):
+    """
+    Transform to convert loaded into RGB color space. 
+    """
     
     def __init__(self):
         self.space = 'RGB'
