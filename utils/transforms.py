@@ -29,6 +29,7 @@ class toRGB(object):
         return rgb_img
     
 class toTensor(object):
+    """Transforms a Numpy image to torch tensor"""
     
     def __init__(self):
         self.space = 'RGB'
@@ -36,4 +37,53 @@ class toTensor(object):
     def __call__(self, pic):
         img = torch.from_numpy(pic.transpose((2, 0, 1)))
         return img
-        
+
+def normalize_lab(lab_img):
+    """
+    Normalizes the LAB image to lie in range 0-1
+    
+    Args:
+    lab_img : torch.Tensor img in lab space
+    
+    Returns:
+    lab_img : torch.Tensor Normalized lab_img 
+    """
+    mean = torch.zeros(lab_img.size())
+    stds = torch.zeros(lab_img.size())
+    
+    mean[:,0,:,:] = 50
+    mean[:,1,:,:] = 0
+    mean[:,2,:,:] = 0
+    
+    stds[:,0,:,:] = 60
+    stds[:,1,:,:] = 160
+    stds[:,2,:,:] = 160
+    
+    return (lab_img.double() - mean.double())/stds.double()
+
+   
+    
+def denormalize_lab(lab_img):
+    """
+    Normalizes the LAB image to lie in range 0-1
+    
+    Args:
+    lab_img : torch.Tensor img in lab space
+    
+    Returns:
+    lab_img : torch.Tensor Normalized lab_img 
+    """
+    mean = torch.zeros(lab_img.size())
+    stds = torch.zeros(lab_img.size())
+    
+    mean[:,0,:,:] = 50
+    mean[:,1,:,:] = 0
+    mean[:,2,:,:] = 0
+    
+    stds[:,0,:,:] = 60
+    stds[:,1,:,:] = 160
+    stds[:,2,:,:] = 160
+    
+    return lab_img.double() *stds.double() + mean.double()
+   
+    
