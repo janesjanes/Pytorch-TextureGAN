@@ -13,3 +13,9 @@ def vis_patch(img,skg,xcenter=128,ycenter=128,size=40):
     
     return vis_img
     
+def vis_image(img):
+    ToRGB = transforms.toRGB()
+    img_np = ToRGB(img[0])
+   
+    
+    return img_np

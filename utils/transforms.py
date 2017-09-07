@@ -85,5 +85,7 @@ def denormalize_lab(lab_img):
     stds[:,2,:,:] = 160
     
     return lab_img.double() *stds.double() + mean.double()
+
+
    
     
