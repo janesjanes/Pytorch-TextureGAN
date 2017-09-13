@@ -4,7 +4,7 @@ import numpy as np
 
 class Discriminator(nn.Module):
 
-	def __init__(self,input_nc,ndf):
+	def __init__(self,input_nc,ndf,use_sigmoid):
 		super(Discriminator,self).__init__()
 
 		self.input_nc = input_nc
@@ -12,15 +12,15 @@ class Discriminator(nn.Module):
 		self.conv = nn.Conv2d
 		self.batch_norm = nn.BatchNorm2d
 
-		self.model = self.create_discriminator()
+		self.model = self.create_discriminator(use_sigmoid)
 
-	def create_discriminator(self): 
+	def create_discriminator(self,use_sigmoid): 
 		
 		norm_layer = nn.BatchNorm2d
 		kw = 4
 		ndf = self.ndf
 		use_bias = 0
-		use_sigmoid =0 
+		#use_sigmoid =1 
 		padw = int(np.ceil((kw-1)/2))
 		sequence = [
 			nn.Conv2d(self.input_nc, self.ndf, kernel_size=kw, stride=2, padding=padw),
