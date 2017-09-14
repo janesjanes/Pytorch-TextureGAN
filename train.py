@@ -35,7 +35,7 @@ import visdom
 
 def main(args):
 
-    
+
     with torch.cuda.device(args.gpu):
 
         vis=visdom.Visdom(port=args.display_port)
@@ -106,7 +106,7 @@ def main(args):
                 ###########################
                 # train with real
                 netD.zero_grad()
-                img, skg, seg = data
+                img, skg,seg = data
                 img=utforms.normalize_lab(img)
                 skg=utforms.normalize_lab(skg)
 
