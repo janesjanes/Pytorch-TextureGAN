@@ -42,6 +42,7 @@ def main(args):
 
 
 
+
     with torch.cuda.device(args.gpu):
 
         vis=visdom.Visdom(port=args.display_port)
@@ -70,10 +71,17 @@ def main(args):
             netG=define_G(3,3,32)
         netD=discriminator.Discriminator(3,32,sigmoid_flag)  
         feat_model=models.vgg19(pretrained=True)
+        if args.load == -1:
+            netG.apply(weights_init)
+        else:
 
-        netG.apply(weights_init)
-        netD.apply(weights_init)    
-
+            load_network(netG,'G',args.load,args.save_dir)
+            print('Loaded G from itr:' + str(args.load))
+        if args.load_D == -1:
+            netD.apply(weights_init)  
+        else:
+            load_network(netD,'D',args.load_D,args.save_dir)
+            print('Loaded D from itr:' + str(args.load_D))
 
         if args.gan =='lsgan':
             criterion_gan = nn.MSELoss()
@@ -257,6 +265,11 @@ def save_network(model, network_label, epoch_label, gpu_id, save_dir):
     save_path = os.path.join(save_dir, save_filename)
     torch.save(model.cpu().state_dict(), save_path)
     model.cuda(device_id=gpu_id)
+#TODO: move to model function    
+def load_network(model, network_label, epoch_label,save_dir):
+    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
+    save_path = os.path.join(save_dir, save_filename)
+    model.load_state_dict(torch.load(save_path))
     
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
@@ -302,8 +315,14 @@ def parse_arguments(argv):
 
     parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir',type=str,
                    help='path to save the model')
-    parser.add_argument('-save_every',  default=1,type=int,
+    parser.add_argument('-save_every',  default=100,type=int,
                     help='no. iteration to save the models')
+    
+    parser.add_argument('-load', default=-1,type=int,
+                   help='load generator and discrminator from iteration n')
+    parser.add_argument('-load_D', default=-1,type=float,
+                   help='load discriminator from iteration n, priority over load')
+    
     
 ############################################################################
 ############################################################################
@@ -344,10 +363,6 @@ def parse_arguments(argv):
     parser.add_argument('-noise_gen', default=False,type=bool,
                    help='whether or not to inject noise into the network')
     
-    parser.add_argument('-load', default=1,type=int,
-                   help='load generator and discrminator from iteration n')
-    parser.add_argument('-load_D', default=1,type=float,
-                   help='load discriminator from iteration n, priority over load')
     
     parser.add_argument('-absolute_load', default='',type=str,
                    help='load saved generator model from absolute location')
