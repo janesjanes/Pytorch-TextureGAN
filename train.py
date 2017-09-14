@@ -55,7 +55,14 @@ def main(args):
             sigmoid_flag = 0 
 
 
-        netG=define_G(3,3,32)
+        if args.model=='scribbler':
+            netG=scribbler.Scribbler(3,3,32)
+        elif args.model=='pix2pix':
+            netG=define_G(3,3,32)
+        else:
+            print(argv.model+ ' not support. Using pix2pix model')
+            netG=define_G(3,3,32)
+            
         netD=discriminator.Discriminator(3,32,sigmoid_flag)  
         feat_model=models.vgg19(pretrained=True)
 
@@ -231,6 +238,9 @@ def parse_arguments(argv):
     parser.add_argument('-gan', default='dcgan',type=str,choices=['dcgan', 'lsgan'],
                     help='dcgan|lsgan') #todo wgan/improved wgan    
     
+    parser.add_argument('-model', default='pix2pix',type=str,choices=['scribbler', 'pix2pix'],
+                   help='scribbler|pix2pix')
+    
     parser.add_argument('-num_epoch',  default=1,type=int,
                     help='texture|scribbler')   
     
@@ -238,11 +248,11 @@ def parse_arguments(argv):
                     help='no. iteration to visualize the results')      
 
     #all the weights ratio, might wanna make them sum to one
-    parser.add_argument('-feature_weight', default=1,type=float,
+    parser.add_argument('-feature_weight', default=10,type=float,
                        help='weight ratio for feature loss')
-    parser.add_argument('-pixel_weight_l', default=0,type=float,
+    parser.add_argument('-pixel_weight_l', default=1,type=float,
                        help='weight ratio for pixel loss for l channel')
-    parser.add_argument('-pixel_weight_ab', default=0,type=float,
+    parser.add_argument('-pixel_weight_ab', default=10,type=float,
                    help='weight ratio for pixel loss for ab channel')
     parser.add_argument('-tv_weight', default=1,type=float,
                    help='weight ratio for total variation loss')
@@ -250,7 +260,7 @@ def parse_arguments(argv):
                    help='weight ratio for the discriminator loss')
 
     parser.add_argument('-gpu', default=1,type=int,
-                   help='id of gpu to use, -1 for cpu')
+                   help='id of gpu to use') #TODO support cpu
 
     parser.add_argument('-display_port', default=7779,type=int,
                help='port for displaying on visdom (need to match with visdom currently open port)')
@@ -295,8 +305,7 @@ def parse_arguments(argv):
     parser.add_argument('-checkpoints_path', default='data/',type=str,
                    help='output directory for results and models')
     
-    parser.add_argument('-model', default='scribbler_custom',type=str,
-                   help='generator architecture')
+
     
     parser.add_argument('-noise_gen', default=False,type=bool,
                    help='whether or not to inject noise into the network')
