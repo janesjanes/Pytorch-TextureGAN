@@ -1,9 +1,14 @@
+#from __future__ import print_function
+#from __future__ import absolute_import
+#from __future__ import division
+
+
 import torch 
 import torch.nn as nn
 from torch.autograd import Variable
 import torchvision.datasets as dataset
 import visdom
-import sys,argparse
+import sys,argparse,os
 
 from models import scribbler, discriminator
 import torch.optim as optim
@@ -30,10 +35,11 @@ import torchvision.transforms as tforms
 import utils.transforms as utforms
 
 from networks import define_G, weights_init
-
+from models import scribbler 
 import visdom
 
 def main(args):
+
 
 
     with torch.cuda.device(args.gpu):
@@ -200,6 +206,12 @@ def main(args):
                 #plt.imshow(vis_image(inputv.data.double().cpu()))
 
                 print i, err_G.data[0]
+
+                if(i%args.save_every==0):
+                    save_network(netG,'G',i,args.gpu,args.save_dir)
+                    save_network(netD,'D',i,args.gpu,args.save_dir)
+
+
                 #TODO test on test set
                 if(i%args.visualize_every==0):
                     test_img=clamp_image(fake.data.double().cpu())
@@ -235,7 +247,16 @@ def clamp_image(img):
     img[:,0,:,:].clamp_(0,1)
     img[:,1,:,:].clamp_(-1.5,1.5)
     img[:,2,:,:].clamp_(-1.5,1.5)
-    return img    
+    return img 
+
+#TODO: move to model function
+def save_network(model, network_label, epoch_label, gpu_id, save_dir):
+    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path = os.path.join(save_dir, save_filename)
+    torch.save(model.cpu().state_dict(), save_path)
+    model.cuda(device_id=gpu_id)
     
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
@@ -279,7 +300,11 @@ def parse_arguments(argv):
     parser.add_argument('-data_path', default='/home/psangkloy3/training_handbags_pretrain/',type=str,
                    help='path to the data directory, expect train_skg, train_img, val_skg, val_img')
 
-
+    parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir',type=str,
+                   help='path to save the model')
+    parser.add_argument('-save_every',  default=1,type=int,
+                    help='no. iteration to save the models')
+    
 ############################################################################
 ############################################################################
 ############TODO: TO ADD#################################################################
@@ -300,9 +325,7 @@ def parse_arguments(argv):
     parser.add_argument('-mode',  default='texture',type=str,choices=['texture','scribbler'],
                     help='texture|scribbler') 
     
-    parser.add_argument('-save_every',  default=50000,type=int,
-                    help='no. iteration to save the models')
-    
+   
     parser.add_argument('-crop',  default='random',type=str,choices=['random','center'],
                     help='random|center')
     
