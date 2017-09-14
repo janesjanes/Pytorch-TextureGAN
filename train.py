@@ -35,6 +35,7 @@ import visdom
 
 def main(args):
 
+    
     with torch.cuda.device(args.gpu):
 
         vis=visdom.Visdom(port=args.display_port)
@@ -54,7 +55,6 @@ def main(args):
         if args.gan =='lsgan':
             sigmoid_flag = 0 
 
-
         if args.model=='scribbler':
             netG=scribbler.Scribbler(3,3,32)
         elif args.model=='pix2pix':
@@ -62,7 +62,6 @@ def main(args):
         else:
             print(argv.model+ ' not support. Using pix2pix model')
             netG=define_G(3,3,32)
-            
         netD=discriminator.Discriminator(3,32,sigmoid_flag)  
         feat_model=models.vgg19(pretrained=True)
 
@@ -83,6 +82,7 @@ def main(args):
 
         input_skg = torch.FloatTensor(2, 3, 256, 256)
         output_img = torch.FloatTensor(2, 3, 256, 256)
+        segment = torch.FloatTensor(2, 3, 256, 256)
         label = torch.FloatTensor(2)
         real_label = 1
         fake_label = 0
@@ -96,7 +96,7 @@ def main(args):
         criterion_gan.cuda()
         criterion_l1.cuda()
         criterion_feat.cuda()
-        input_skg, output_img, label = input_skg.cuda(), output_img.cuda(), label.cuda()
+        input_skg, output_img, segment, label = input_skg.cuda(), output_img.cuda(),segment.cuda(), label.cuda()
 
 
         for epoch in range(args.num_epoch):
@@ -106,13 +106,18 @@ def main(args):
                 ###########################
                 # train with real
                 netD.zero_grad()
-                img, skg = data
+                img, skg, seg = data
                 img=utforms.normalize_lab(img)
                 skg=utforms.normalize_lab(skg)
+
                 img=img.cuda()
                 skg=skg.cuda()
+                seg=seg.cuda()
+
                 input_skg.resize_as_(skg.float()).copy_(skg)
                 output_img.resize_as_(img.float()).copy_(img)
+                segment.resize_as_(seg.float()).copy_(seg)
+
                 inputv = Variable(input_skg)
                 outputv = Variable(output_img)
                 labelv = Variable(label)
@@ -211,12 +216,18 @@ def main(args):
                     target_img=(target_img*255).astype('uint8')
                     target_img=np.transpose(target_img,(2,0,1))
 
+                    segment_img=vis_image((seg.cpu()))
+                    segment_img=(segment_img*255).astype('uint8')
+                    segment_img=np.transpose(segment_img,(2,0,1))
+
                     vis.image(test_img,win='output',opts=dict(title='output'))
                     vis.image(inp_img,win='input',opts=dict(title='input'))  
-                    vis.image(inp_img,win='input',opts=dict(title='input'))
+                    vis.image(target_img,win='target',opts=dict(title='target'))
+                    vis.image(segment_img,win='segment',opts=dict(title='segment'))
                     vis.line(np.array(Loss_g_graph),win='g',opts=dict(title='G Total Loss'))
                     vis.line(np.array(Loss_gd_graph),win='gd',opts=dict(title='G-Discriminator Loss'))
                     vis.line(np.array(Loss_gf_graph),win='gf',opts=dict(title='G-Feature Loss'))
+                    vis.line(np.array(Loss_gp_graph),win='gp',opts=dict(title='G-Pixel Loss'))
                     vis.line(np.array(Loss_d_graph),win='d',opts=dict(title='D Loss'))
 
 #TODO: move to utils

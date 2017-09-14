@@ -64,7 +64,7 @@ class ImageFolder(data.Dataset):
 
         self.root = root
         self.imgs = imgs
-        self.transform = transform
+        self.transform = transform #augmentation goes here
         self.target_transform = target_transform
         self.loader = loader
 
@@ -80,12 +80,14 @@ class ImageFolder(data.Dataset):
         
         img = self.loader(img_path)
         skg = self.loader(skg_path)
+        seg = self.loader(seg_path)
         
         if self.transform is not None:
+            #TODO: both sketch and image (and seg) need the same transformation.
             img = self.transform(img)
             skg = self.transform(skg)
             
-        return img, skg
+        return img, skg,seg
 
     def __len__(self):
         return len(self.imgs)
