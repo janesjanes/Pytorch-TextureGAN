@@ -1,9 +1,14 @@
+#from __future__ import print_function
+#from __future__ import absolute_import
+#from __future__ import division
+
+
 import torch 
 import torch.nn as nn
 from torch.autograd import Variable
 import torchvision.datasets as dataset
 import visdom
-import sys,argparse
+import sys,argparse,os
 
 from models import scribbler, discriminator
 import torch.optim as optim
@@ -30,10 +35,13 @@ import torchvision.transforms as tforms
 import utils.transforms as utforms
 
 from networks import define_G, weights_init
-
+from models import scribbler 
 import visdom
 
 def main(args):
+
+
+
 
     with torch.cuda.device(args.gpu):
 
@@ -54,14 +62,26 @@ def main(args):
         if args.gan =='lsgan':
             sigmoid_flag = 0 
 
-
-        netG=define_G(3,3,32)
+        if args.model=='scribbler':
+            netG=scribbler.Scribbler(3,3,32)
+        elif args.model=='pix2pix':
+            netG=define_G(3,3,32)
+        else:
+            print(argv.model+ ' not support. Using pix2pix model')
+            netG=define_G(3,3,32)
         netD=discriminator.Discriminator(3,32,sigmoid_flag)  
         feat_model=models.vgg19(pretrained=True)
+        if args.load == -1:
+            netG.apply(weights_init)
+        else:
 
-        netG.apply(weights_init)
-        netD.apply(weights_init)    
-
+            load_network(netG,'G',args.load,args.save_dir)
+            print('Loaded G from itr:' + str(args.load))
+        if args.load_D == -1:
+            netD.apply(weights_init)  
+        else:
+            load_network(netD,'D',args.load_D,args.save_dir)
+            print('Loaded D from itr:' + str(args.load_D))
 
         if args.gan =='lsgan':
             criterion_gan = nn.MSELoss()
@@ -76,6 +96,7 @@ def main(args):
 
         input_skg = torch.FloatTensor(2, 3, 256, 256)
         output_img = torch.FloatTensor(2, 3, 256, 256)
+        segment = torch.FloatTensor(2, 3, 256, 256)
         label = torch.FloatTensor(2)
         real_label = 1
         fake_label = 0
@@ -89,7 +110,7 @@ def main(args):
         criterion_gan.cuda()
         criterion_l1.cuda()
         criterion_feat.cuda()
-        input_skg, output_img, label = input_skg.cuda(), output_img.cuda(), label.cuda()
+        input_skg, output_img, segment, label = input_skg.cuda(), output_img.cuda(),segment.cuda(), label.cuda()
 
 
         for epoch in range(args.num_epoch):
@@ -99,13 +120,18 @@ def main(args):
                 ###########################
                 # train with real
                 netD.zero_grad()
-                img, skg = data
+                img, skg,seg = data
                 img=utforms.normalize_lab(img)
                 skg=utforms.normalize_lab(skg)
+
                 img=img.cuda()
                 skg=skg.cuda()
+                seg=seg.cuda()
+
                 input_skg.resize_as_(skg.float()).copy_(skg)
                 output_img.resize_as_(img.float()).copy_(img)
+                segment.resize_as_(seg.float()).copy_(seg)
+
                 inputv = Variable(input_skg)
                 outputv = Variable(output_img)
                 labelv = Variable(label)
@@ -188,6 +214,12 @@ def main(args):
                 #plt.imshow(vis_image(inputv.data.double().cpu()))
 
                 print i, err_G.data[0]
+
+                if(i%args.save_every==0):
+                    save_network(netG,'G',i,args.gpu,args.save_dir)
+                    save_network(netD,'D',i,args.gpu,args.save_dir)
+
+
                 #TODO test on test set
                 if(i%args.visualize_every==0):
                     test_img=clamp_image(fake.data.double().cpu())
@@ -204,12 +236,18 @@ def main(args):
                     target_img=(target_img*255).astype('uint8')
                     target_img=np.transpose(target_img,(2,0,1))
 
+                    segment_img=vis_image((seg.cpu()))
+                    segment_img=(segment_img*255).astype('uint8')
+                    segment_img=np.transpose(segment_img,(2,0,1))
+
                     vis.image(test_img,win='output',opts=dict(title='output'))
                     vis.image(inp_img,win='input',opts=dict(title='input'))  
-                    vis.image(inp_img,win='input',opts=dict(title='input'))
+                    vis.image(target_img,win='target',opts=dict(title='target'))
+                    vis.image(segment_img,win='segment',opts=dict(title='segment'))
                     vis.line(np.array(Loss_g_graph),win='g',opts=dict(title='G Total Loss'))
                     vis.line(np.array(Loss_gd_graph),win='gd',opts=dict(title='G-Discriminator Loss'))
                     vis.line(np.array(Loss_gf_graph),win='gf',opts=dict(title='G-Feature Loss'))
+                    vis.line(np.array(Loss_gp_graph),win='gp',opts=dict(title='G-Pixel Loss'))
                     vis.line(np.array(Loss_d_graph),win='d',opts=dict(title='D Loss'))
 
 #TODO: move to utils
@@ -217,7 +255,21 @@ def clamp_image(img):
     img[:,0,:,:].clamp_(0,1)
     img[:,1,:,:].clamp_(-1.5,1.5)
     img[:,2,:,:].clamp_(-1.5,1.5)
-    return img    
+    return img 
+
+#TODO: move to model function
+def save_network(model, network_label, epoch_label, gpu_id, save_dir):
+    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path = os.path.join(save_dir, save_filename)
+    torch.save(model.cpu().state_dict(), save_path)
+    model.cuda(device_id=gpu_id)
+#TODO: move to model function    
+def load_network(model, network_label, epoch_label,save_dir):
+    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
+    save_path = os.path.join(save_dir, save_filename)
+    model.load_state_dict(torch.load(save_path))
     
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
@@ -231,6 +283,9 @@ def parse_arguments(argv):
     parser.add_argument('-gan', default='dcgan',type=str,choices=['dcgan', 'lsgan'],
                     help='dcgan|lsgan') #todo wgan/improved wgan    
     
+    parser.add_argument('-model', default='pix2pix',type=str,choices=['scribbler', 'pix2pix'],
+                   help='scribbler|pix2pix')
+    
     parser.add_argument('-num_epoch',  default=1,type=int,
                     help='texture|scribbler')   
     
@@ -238,11 +293,11 @@ def parse_arguments(argv):
                     help='no. iteration to visualize the results')      
 
     #all the weights ratio, might wanna make them sum to one
-    parser.add_argument('-feature_weight', default=1,type=float,
+    parser.add_argument('-feature_weight', default=10,type=float,
                        help='weight ratio for feature loss')
-    parser.add_argument('-pixel_weight_l', default=0,type=float,
+    parser.add_argument('-pixel_weight_l', default=1,type=float,
                        help='weight ratio for pixel loss for l channel')
-    parser.add_argument('-pixel_weight_ab', default=0,type=float,
+    parser.add_argument('-pixel_weight_ab', default=10,type=float,
                    help='weight ratio for pixel loss for ab channel')
     parser.add_argument('-tv_weight', default=1,type=float,
                    help='weight ratio for total variation loss')
@@ -250,7 +305,7 @@ def parse_arguments(argv):
                    help='weight ratio for the discriminator loss')
 
     parser.add_argument('-gpu', default=1,type=int,
-                   help='id of gpu to use, -1 for cpu')
+                   help='id of gpu to use') #TODO support cpu
 
     parser.add_argument('-display_port', default=7779,type=int,
                help='port for displaying on visdom (need to match with visdom currently open port)')
@@ -258,7 +313,17 @@ def parse_arguments(argv):
     parser.add_argument('-data_path', default='/home/psangkloy3/training_handbags_pretrain/',type=str,
                    help='path to the data directory, expect train_skg, train_img, val_skg, val_img')
 
-
+    parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir',type=str,
+                   help='path to save the model')
+    parser.add_argument('-save_every',  default=100,type=int,
+                    help='no. iteration to save the models')
+    
+    parser.add_argument('-load', default=-1,type=int,
+                   help='load generator and discrminator from iteration n')
+    parser.add_argument('-load_D', default=-1,type=float,
+                   help='load discriminator from iteration n, priority over load')
+    
+    
 ############################################################################
 ############################################################################
 ############TODO: TO ADD#################################################################
@@ -279,9 +344,7 @@ def parse_arguments(argv):
     parser.add_argument('-mode',  default='texture',type=str,choices=['texture','scribbler'],
                     help='texture|scribbler') 
     
-    parser.add_argument('-save_every',  default=50000,type=int,
-                    help='no. iteration to save the models')
-    
+   
     parser.add_argument('-crop',  default='random',type=str,choices=['random','center'],
                     help='random|center')
     
@@ -295,16 +358,11 @@ def parse_arguments(argv):
     parser.add_argument('-checkpoints_path', default='data/',type=str,
                    help='output directory for results and models')
     
-    parser.add_argument('-model', default='scribbler_custom',type=str,
-                   help='generator architecture')
+
     
     parser.add_argument('-noise_gen', default=False,type=bool,
                    help='whether or not to inject noise into the network')
     
-    parser.add_argument('-load', default=1,type=int,
-                   help='load generator and discrminator from iteration n')
-    parser.add_argument('-load_D', default=1,type=float,
-                   help='load discriminator from iteration n, priority over load')
     
     parser.add_argument('-absolute_load', default='',type=str,
                    help='load saved generator model from absolute location')

@@ -80,12 +80,15 @@ class ImageFolder(data.Dataset):
         
         img = self.loader(img_path)
         skg = self.loader(skg_path)
+        seg = self.loader(seg_path)
         
         if self.transform is not None:
+            #TODO transform need to be applied to all three in exactly the same ways.
             img = self.transform(img)
             skg = self.transform(skg)
+            seg = self.transform(seg)
             
-        return img, skg
+        return img, skg, seg
 
     def __len__(self):
         return len(self.imgs)
