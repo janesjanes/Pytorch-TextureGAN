@@ -40,9 +40,6 @@ import visdom
 
 def main(args):
 
-
-
-
     with torch.cuda.device(args.gpu):
 
         vis=visdom.Visdom(port=args.display_port)
@@ -51,12 +48,13 @@ def main(args):
         Loss_gd_graph=[]
         Loss_gf_graph = []
         Loss_gp_graph = []
+        Loss_gs_graph = []
         Loss_d_graph=[]
 
-        ts=tforms.Compose([custom_trans.toLAB(), custom_trans.toTensor()])
+        ts=custom_trans.Compose([custom_trans.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),custom_trans.RandomHorizontalFlip() ,custom_trans.toLAB(), custom_trans.toTensor()])
         rgbify = custom_trans.toRGB()
         dset = ImageFolder(args.data_path,ts)
-        dataloader=DataLoader(dataset=dset, batch_size=2, shuffle=True)
+        dataloader=DataLoader(dataset=dset, batch_size=1, shuffle=True)
 
         sigmoid_flag = 1
         if args.gan =='lsgan':
@@ -67,7 +65,7 @@ def main(args):
         elif args.model=='pix2pix':
             netG=define_G(3,3,32)
         else:
-            print(argv.model+ ' not support. Using pix2pix model')
+            print(args.model+ ' not support. Using pix2pix model')
             netG=define_G(3,3,32)
         netD=discriminator.Discriminator(3,32,sigmoid_flag)  
         feat_model=models.vgg19(pretrained=True)
@@ -89,10 +87,8 @@ def main(args):
             criterion_gan = nn.BCELoss()
 
         criterion_l1 = nn.L1Loss()
-
+        criterion_style = nn.L1Loss()
         criterion_feat = nn.L1Loss()
-
-
 
         input_skg = torch.FloatTensor(2, 3, 256, 256)
         output_img = torch.FloatTensor(2, 3, 256, 256)
@@ -149,6 +145,10 @@ def main(args):
                 #noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
                 #noisev = Variable(noise)
                 fake = netG(inputv)
+                #TODO only fed L channel to D
+                L,A,B=torch.chunk(fake,3,dim=1)
+                ##################################
+                #TODO add threshold to stop updating D
                 output = netD(fake.detach())
                 label.resize_(output.data.size())
                 labelv = Variable(label.fill_(fake_label))
@@ -159,12 +159,14 @@ def main(args):
                 errD = errD_real + errD_fake
                 Loss_d_graph.append(errD.data[0])
                 optimizerD.step()
+                #TODO add discriminator accuracy
 
                 ############################
                 # (2) Update G network: maximize log(D(G(z)))
                 ###########################
                 netG.zero_grad()
                 labelv = Variable(label.fill_(real_label))  # fake labels are real for generator cost
+                #TODO only fed L channel to D
                 output = netD(fake)
 
                 multer=torch.ones(inputv.data.size())
@@ -179,7 +181,10 @@ def main(args):
 
                 #print outputv.size(), multer.size()
                 woutputv = outputv*multer*multer_
-                err_pixel = criterion_l1(fake*multer, woutputv)
+
+                err_pixel = criterion_l1(fake*multer*multer_, woutputv)
+                #print(err_pixel.data[0])
+                #break
                 #####################################
                 D_G_z2 = output.data.mean()
 
@@ -190,20 +195,38 @@ def main(args):
 
                 ####################################
                 #TODO normalize and minus mean?
-                L,A,B=torch.chunk(fake,3,dim=1)
+                #L,A,B=torch.chunk(fake,3,dim=1)
                 LLL=torch.cat((L,L,L),1)
-                out_feat=feat_model.features(LLL)
+                Extract = FeatureExtractor(feat_model.features, ['10'])
+                out_feat = Extract(LLL)[0]
+
+                #out_feat=feat_model.features(LLL)
 
                 #print(LLL.size())
                 #break
-                gt_feat = feat_model.features(outputv)
+                gt_feat = Extract(outputv)[0]
 
                 gt_feat = gt_feat.detach() #don't require grad for this
 
                 err_feat = args.feature_weight*criterion_feat(out_feat,gt_feat)
                 #err_feat.backward()
 
-                err_G = err_pixel + err_gan + err_feat
+                # style loss
+                Extract = FeatureExtractor(feat_model.features, ['0','5','10','19','28'])
+                output_feature = Extract(LLL)
+                target_feature = Extract(outputv)
+
+                gram = GramMatrix()
+
+                err_style = 0
+                gram_style = [gram(y) for y in target_feature]
+                for m in range(len(output_feature)):
+                    gram_y = gram(output_feature[m])
+                    gram_s = Variable(gram_style[m].data, requires_grad=False)
+                    err_style += args.style_weight * criterion_style(gram_y, gram_s)
+                    #style_loss = StyleLoss(gram_s, style_weight)
+
+                err_G = err_pixel + err_gan + err_feat + err_style
                 err_G.backward()
 
                 optimizerG.step()
@@ -211,6 +234,7 @@ def main(args):
                 Loss_gp_graph.append(err_pixel.data[0])
                 Loss_gd_graph.append(err_gan.data[0])
                 Loss_gf_graph.append(err_feat.data[0])
+                Loss_gs_graph.append(err_style.data[0])
                 #plt.imshow(vis_image(inputv.data.double().cpu()))
 
                 print i, err_G.data[0]
@@ -244,6 +268,7 @@ def main(args):
                     vis.image(inp_img,win='input',opts=dict(title='input'))  
                     vis.image(target_img,win='target',opts=dict(title='target'))
                     vis.image(segment_img,win='segment',opts=dict(title='segment'))
+                    vis.line(np.array(Loss_gs_graph),win='gs',opts=dict(title='G-Style Loss'))
                     vis.line(np.array(Loss_g_graph),win='g',opts=dict(title='G Total Loss'))
                     vis.line(np.array(Loss_gd_graph),win='gd',opts=dict(title='G-Discriminator Loss'))
                     vis.line(np.array(Loss_gf_graph),win='gf',opts=dict(title='G-Feature Loss'))
@@ -271,13 +296,46 @@ def load_network(model, network_label, epoch_label,save_dir):
     save_path = os.path.join(save_dir, save_filename)
     model.load_state_dict(torch.load(save_path))
     
+#TODO move to utils
+class FeatureExtractor(nn.Module):
+    # Extract features from intermediate layers of a network
+
+    def __init__(self, submodule, extracted_layers):
+        super(FeatureExtractor,self).__init__()
+        self.submodule = submodule
+        self.extracted_layers=extracted_layers
+
+    def forward(self, x):
+        outputs = []
+        for name, module in self.submodule._modules.items():
+            x = module(x)
+            if name in self.extracted_layers:
+                outputs += [x]
+        return outputs + [x]
+    
+#TODO move to separate loss file
+class GramMatrix(nn.Module):
+
+    def forward(self, input):
+        a, b, c, d = input.size()  # a=batch size(=1)
+        # b=number of feature maps
+        # (c,d)=dimensions of a f. map (N=c*d)
+
+        features = input.view(a * b, c * d)  # resise F_XL into \hat F_XL
+
+        G = torch.mm(features, features.t())  # compute the gram product
+
+        # normalize the values of the gram matrix
+        # by dividing by the number of element in each feature maps.
+        return G.div(a * b * c * d)
+    
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
     
 ###############added options#######################################
-    parser.add_argument('-learning_rate', default=1e-4, type=float,
+    parser.add_argument('-learning_rate', default=1e-8, type=float,
                     help='Learning rate for the generator')
-    parser.add_argument('-learning_rate_D',  default=1e-4,type=float,
+    parser.add_argument('-learning_rate_D',  default=1e-5,type=float,
                     help='Learning rate for the discriminator')    
     
     parser.add_argument('-gan', default='dcgan',type=str,choices=['dcgan', 'lsgan'],
@@ -293,21 +351,23 @@ def parse_arguments(argv):
                     help='no. iteration to visualize the results')      
 
     #all the weights ratio, might wanna make them sum to one
-    parser.add_argument('-feature_weight', default=10,type=float,
+    parser.add_argument('-feature_weight', default=1,type=float,
                        help='weight ratio for feature loss')
-    parser.add_argument('-pixel_weight_l', default=1,type=float,
+    parser.add_argument('-pixel_weight_l', default=100,type=float,
                        help='weight ratio for pixel loss for l channel')
-    parser.add_argument('-pixel_weight_ab', default=10,type=float,
+    parser.add_argument('-pixel_weight_ab', default=100,type=float,
                    help='weight ratio for pixel loss for ab channel')
-    parser.add_argument('-tv_weight', default=1,type=float,
-                   help='weight ratio for total variation loss')
-    parser.add_argument('-discriminator_weight', default=0,type=float,
+   
+    parser.add_argument('-discriminator_weight', default=1,type=float,
                    help='weight ratio for the discriminator loss')
+    parser.add_argument('-style_weight', default = 1, type=float, 
+                        help='weight ratio for the texture loss')
+
 
     parser.add_argument('-gpu', default=1,type=int,
                    help='id of gpu to use') #TODO support cpu
 
-    parser.add_argument('-display_port', default=7779,type=int,
+    parser.add_argument('-display_port', default=8889,type=int,
                help='port for displaying on visdom (need to match with visdom currently open port)')
 
     parser.add_argument('-data_path', default='/home/psangkloy3/training_handbags_pretrain/',type=str,
@@ -315,29 +375,31 @@ def parse_arguments(argv):
 
     parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir',type=str,
                    help='path to save the model')
-    parser.add_argument('-save_every',  default=100,type=int,
+    parser.add_argument('-save_every',  default=1000,type=int,
                     help='no. iteration to save the models')
     
-    parser.add_argument('-load', default=-1,type=int,
+    parser.add_argument('-load', default=1000,type=int,
                    help='load generator and discrminator from iteration n')
-    parser.add_argument('-load_D', default=-1,type=float,
+    parser.add_argument('-load_D', default=1000,type=float,
                    help='load discriminator from iteration n, priority over load')
     
+    parser.add_argument('-image_size',default=224,type=int,
+                    help='Training images size, after cropping')        
+    parser.add_argument('-resize_max',  default=1,type=int,
+                    help='max resize, ratio of the original image, max value is 1')        
+    parser.add_argument('-resize_min',  default=0.6,type=int,
+                    help='min resize, ratio of the original image, min value 0')   
     
 ############################################################################
 ############################################################################
 ############TODO: TO ADD#################################################################
+    parser.add_argument('-tv_weight', default=1,type=float,
+                   help='weight ratio for total variation loss')
     parser.add_argument('-content_layers',  default='relu2_2',type=str,
                     help='Layer to attach content loss.')
     
     parser.add_argument('-batch_size', default=1) #fixed batch size 1
     
-    parser.add_argument('-image_size',default=128,type=int,
-                    help='Training images size, after cropping')        
-    parser.add_argument('-resize_max',  default=256,type=int,
-                    help='max resize size')        
-    parser.add_argument('-resize_min',  default=128,type=int,
-                    help='min resize size')   
     
 
     
@@ -373,7 +435,6 @@ def parse_arguments(argv):
 ##################################################################################################################################    
     
     return parser.parse_args(argv)
-
 if __name__ == '__main__':
     main(parse_arguments(sys.argv[1:]))
     

@@ -22,6 +22,7 @@ def find_classes(dir):
     return classes, class_to_idx
 
 
+#TODO add val folder
 def make_dataset(dir):
     train_img=glob.glob(dir+'train_img/wendy/*.jpg')
     train_img=sorted(train_img)
@@ -82,11 +83,10 @@ class ImageFolder(data.Dataset):
         skg = self.loader(skg_path)
         seg = self.loader(seg_path)
         
+        
         if self.transform is not None:
-            #TODO transform need to be applied to all three in exactly the same ways.
-            img = self.transform(img)
-            skg = self.transform(skg)
-            seg = self.transform(seg)
+            img,skg,seg = self.transform([img,skg,seg])
+            
             
         return img, skg, seg
 
