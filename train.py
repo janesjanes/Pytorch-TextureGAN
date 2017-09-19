@@ -40,6 +40,10 @@ import visdom
 
 def main(args):
 
+#TODO: visdom show the whole batch and on test set
+#TODO: index to name mapping for vgg layers
+#TODO: rgb/lab option
+
     with torch.cuda.device(args.gpu):
 
         vis=visdom.Visdom(port=args.display_port)
@@ -47,38 +51,41 @@ def main(args):
         Loss_g_graph=[]
         Loss_gd_graph=[]
         Loss_gf_graph = []
-        Loss_gp_graph = []
+        Loss_gpl_graph = []
+        Loss_gpab_graph = []    
         Loss_gs_graph = []
         Loss_d_graph=[]
 
         ts=custom_trans.Compose([custom_trans.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),custom_trans.RandomHorizontalFlip() ,custom_trans.toLAB(), custom_trans.toTensor()])
         rgbify = custom_trans.toRGB()
         dset = ImageFolder(args.data_path,ts)
-        dataloader=DataLoader(dataset=dset, batch_size=1, shuffle=True)
+        dataloader=DataLoader(dataset=dset, batch_size=args.batch_size, shuffle=True)
+
+       # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
 
         sigmoid_flag = 1
         if args.gan =='lsgan':
             sigmoid_flag = 0 
 
         if args.model=='scribbler':
-            netG=scribbler.Scribbler(3,3,32)
+            netG=scribbler.Scribbler(5,3,32)
         elif args.model=='pix2pix':
-            netG=define_G(3,3,32)
+            netG=define_G(5,3,32)
         else:
             print(args.model+ ' not support. Using pix2pix model')
-            netG=define_G(3,3,32)
-        netD=discriminator.Discriminator(3,32,sigmoid_flag)  
+            netG=define_G(5,3,32)
+        netD=discriminator.Discriminator(1,32,sigmoid_flag)  
         feat_model=models.vgg19(pretrained=True)
         if args.load == -1:
             netG.apply(weights_init)
         else:
 
-            load_network(netG,'G',args.load,args.save_dir)
+            load_network(netG,'G',args.load,args.load_dir)
             print('Loaded G from itr:' + str(args.load))
         if args.load_D == -1:
             netD.apply(weights_init)  
         else:
-            load_network(netD,'D',args.load_D,args.save_dir)
+            load_network(netD,'D',args.load_D,args.load_dir)
             print('Loaded D from itr:' + str(args.load_D))
 
         if args.gan =='lsgan':
@@ -86,14 +93,18 @@ def main(args):
         elif args.gan =='dcgan':
             criterion_gan = nn.BCELoss()
 
-        criterion_l1 = nn.L1Loss()
+        #criterion_l1 = nn.L1Loss()
+        criterion_pixel_l = nn.L1Loss()
+        criterion_pixel_ab = nn.L1Loss()
         criterion_style = nn.L1Loss()
         criterion_feat = nn.L1Loss()
 
-        input_skg = torch.FloatTensor(2, 3, 256, 256)
-        output_img = torch.FloatTensor(2, 3, 256, 256)
-        segment = torch.FloatTensor(2, 3, 256, 256)
-        label = torch.FloatTensor(2)
+        input_stack = torch.FloatTensor()
+        target_img = torch.FloatTensor()
+        segment = torch.FloatTensor()
+
+
+        label = torch.FloatTensor(args.batch_size)
         real_label = 1
         fake_label = 0
 
@@ -104,140 +115,155 @@ def main(args):
         netD.cuda()
         feat_model.cuda()
         criterion_gan.cuda()
-        criterion_l1.cuda()
+        criterion_pixel_l.cuda()
+        criterion_pixel_ab.cuda()
         criterion_feat.cuda()
-        input_skg, output_img, segment, label = input_skg.cuda(), output_img.cuda(),segment.cuda(), label.cuda()
+        input_stack, target_img, segment, label = input_stack.cuda(), target_img.cuda(),segment.cuda(), label.cuda()
 
-
+        Extract_content = FeatureExtractor(feat_model.features, ['11'])
+        Extract_style = FeatureExtractor(feat_model.features, ['0','5','10','19','28'])
         for epoch in range(args.num_epoch):
             for i, data in enumerate(dataloader, 0):
+
+
+                #Detach is apparently just creating new Variable with cut off reference to previous node, so shouldn't effect the original 
+                #But just in case, let's do G first so that detaching G during D update don't do anything weird
                 ############################
-                # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+                # (1) Update G network: maximize log(D(G(z)))
                 ###########################
-                # train with real
-                netD.zero_grad()
-                img, skg,seg = data
+                netG.zero_grad()
+
+                img, skg,seg = data #LAB with negeative value
+
                 img=utforms.normalize_lab(img)
                 skg=utforms.normalize_lab(skg)
+                #skg = torch.round(skg)
+               # break
+                #randomize patch position/size
+                crop_size = int( rand_between(args.crop_size_min, args.crop_size_max))
+                xcenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
+                ycenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
+                inp = gen_input(img,skg,xcenter,ycenter,crop_size)
+
 
                 img=img.cuda()
                 skg=skg.cuda()
                 seg=seg.cuda()
 
-                input_skg.resize_as_(skg.float()).copy_(skg)
-                output_img.resize_as_(img.float()).copy_(img)
+                inp = inp.cuda()
+
+                input_stack.resize_as_(inp.float()).copy_(inp)
+                target_img.resize_as_(img.float()).copy_(img)
                 segment.resize_as_(seg.float()).copy_(seg)
 
-                inputv = Variable(input_skg)
-                outputv = Variable(output_img)
-                labelv = Variable(label)
-                #print labelv.data.size()
+                inputv = Variable(input_stack)
+                targetv = Variable(target_img)
 
-                output = netD(inputv)
+                outputG = netG(inputv)
 
-                label.resize_(output.data.size())
-                labelv = Variable(label.fill_(real_label))
-                errD_real = criterion_gan(output, labelv)
-                errD_real.backward()
-                D_x = output.data.mean()
+                outputl,outputa,outputb=torch.chunk((outputG),3,dim=1)
 
-                # train with fake
-                #noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
-                #noisev = Variable(noise)
-                fake = netG(inputv)
-                #TODO only fed L channel to D
-                L,A,B=torch.chunk(fake,3,dim=1)
-                ##################################
-                #TODO add threshold to stop updating D
-                output = netD(fake.detach())
-                label.resize_(output.data.size())
-                labelv = Variable(label.fill_(fake_label))
+                targetl,targeta,targetb = torch.chunk(targetv,3,dim=1)
+                outputab = torch.cat((outputa,outputb),1)
+                targetab = torch.cat((targeta,targetb),1)
 
-                errD_fake = criterion_gan(output, labelv)
-                errD_fake.backward()
-                D_G_z1 = output.data.mean()
-                errD = errD_real + errD_fake
-                Loss_d_graph.append(errD.data[0])
-                optimizerD.step()
-                #TODO add discriminator accuracy
+                #TODO renormalize with the right mean (but shouldn't matter much, it's around 0.5 anyway)
+                outputlll= (torch.cat((outputl,outputl,outputl),1))
+                targetlll = (torch.cat((targetl,targetl,targetl),1))
 
-                ############################
-                # (2) Update G network: maximize log(D(G(z)))
-                ###########################
-                netG.zero_grad()
-                labelv = Variable(label.fill_(real_label))  # fake labels are real for generator cost
-                #TODO only fed L channel to D
-                output = netD(fake)
+                ##################Pixel L Loss############################
+                err_pixel_l = args.pixel_weight_l*criterion_pixel_l(outputl,targetl)
 
-                multer=torch.ones(inputv.data.size())
-                multer[:,1:,:,:]=args.pixel_weight_ab*multer[:,1:,:,:]
-                multer=multer.cuda()
-                multer=Variable(multer)
+                ##################Pixel ab Loss############################
+                err_pixel_ab = args.pixel_weight_ab*criterion_pixel_ab(outputab,targetab)
 
-                multer_=torch.ones(inputv.data.size())
-                multer_[:,0,:,:]=args.pixel_weight_l*multer_[:,0,:,:]
-                multer_=multer_.cuda()
-                multer_=Variable(multer_)
 
-                #print outputv.size(), multer.size()
-                woutputv = outputv*multer*multer_
+                ##################feature Loss############################
+                out_feat = Extract_content(outputlll)[0]
 
-                err_pixel = criterion_l1(fake*multer*multer_, woutputv)
-                #print(err_pixel.data[0])
-                #break
-                #####################################
-                D_G_z2 = output.data.mean()
+                gt_feat = Extract_content(targetlll)[0]
+                err_feat = args.feature_weight*criterion_feat(out_feat,gt_feat.detach())   
 
-                label.resize_(output.data.size())
-                labelv = Variable(label.fill_(real_label))
 
-                err_gan = args.discriminator_weight*criterion_gan(output, labelv)
-
-                ####################################
-                #TODO normalize and minus mean?
-                #L,A,B=torch.chunk(fake,3,dim=1)
-                LLL=torch.cat((L,L,L),1)
-                Extract = FeatureExtractor(feat_model.features, ['10'])
-                out_feat = Extract(LLL)[0]
-
-                #out_feat=feat_model.features(LLL)
-
-                #print(LLL.size())
-                #break
-                gt_feat = Extract(outputv)[0]
-
-                gt_feat = gt_feat.detach() #don't require grad for this
-
-                err_feat = args.feature_weight*criterion_feat(out_feat,gt_feat)
-                #err_feat.backward()
-
-                # style loss
-                Extract = FeatureExtractor(feat_model.features, ['0','5','10','19','28'])
-                output_feature = Extract(LLL)
-                target_feature = Extract(outputv)
+                ##################style Loss############################
+                output_feat_ = Extract_style(outputlll)
+                target_feat_ = Extract_style(targetlll)
 
                 gram = GramMatrix()
 
                 err_style = 0
-                gram_style = [gram(y) for y in target_feature]
-                for m in range(len(output_feature)):
-                    gram_y = gram(output_feature[m])
-                    gram_s = Variable(gram_style[m].data, requires_grad=False)
-                    err_style += args.style_weight * criterion_style(gram_y, gram_s)
-                    #style_loss = StyleLoss(gram_s, style_weight)
+                for m in range(len(output_feat_)): 
+                    gram_y = gram(output_feat_[m])
+                    gram_s = gram(target_feat_[m])
 
-                err_G = err_pixel + err_gan + err_feat + err_style
+                    err_style += args.style_weight * criterion_style(gram_y, gram_s.detach())
+
+
+
+                ##################D Loss############################
+                netD.zero_grad()
+                label_ = Variable(label)
+                outputD = netD(outputl)
+
+                #D_G_z2 = outputD.data.mean()
+
+                label.resize_(outputD.data.size())
+                labelv = Variable(label.fill_(real_label))
+
+                err_gan = args.discriminator_weight*criterion_gan(outputD, labelv)
+
+                ####################################
+                err_G = err_pixel_l+err_pixel_ab + err_gan + err_feat + err_style
                 err_G.backward()
 
-                optimizerG.step()
+                optimizerG.step() 
+
                 Loss_g_graph.append(err_G.data[0])
-                Loss_gp_graph.append(err_pixel.data[0])
+                Loss_gpl_graph.append(err_pixel_l.data[0])
+                Loss_gpab_graph.append(err_pixel_ab.data[0])
                 Loss_gd_graph.append(err_gan.data[0])
                 Loss_gf_graph.append(err_feat.data[0])
                 Loss_gs_graph.append(err_style.data[0])
                 #plt.imshow(vis_image(inputv.data.double().cpu()))
 
-                print i, err_G.data[0]
+                print i, err_G.data[0]            
+
+
+                ############################
+                # (2) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+                ###########################
+                # train with real
+                netD.zero_grad()
+
+                labelv = Variable(label)
+
+                outputD = netD(targetl)
+
+                label.resize_(outputD.data.size())
+                labelv = Variable(label.fill_(real_label))
+
+                errD_real = criterion_gan(outputD, labelv)
+                errD_real.backward()
+
+                #D_x = output_.data.mean()
+
+                # train with fake
+                #noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
+                #noisev = Variable(noise)
+
+                ##################################
+                #TODO add threshold to stop updating D
+                outputD = netD(outputl.detach())
+                label.resize_(outputD.data.size())
+                labelv = Variable(label.fill_(fake_label))
+
+                errD_fake = criterion_gan(outputD, labelv)
+                errD_fake.backward()
+                #D_G_z1 = output.data.mean()
+                errD = errD_real + errD_fake
+                Loss_d_graph.append(errD.data[0])
+                optimizerD.step()
+                #TODO add discriminator accuracy
 
                 if(i%args.save_every==0):
                     save_network(netG,'G',i,args.gpu,args.save_dir)
@@ -246,35 +272,62 @@ def main(args):
 
                 #TODO test on test set
                 if(i%args.visualize_every==0):
-                    test_img=clamp_image(fake.data.double().cpu())
-                    test_img=utforms.denormalize_lab(test_img)
-                    test_img=vis_image(test_img)
-                    test_img=(test_img*255).astype('uint8')
-                    test_img=np.transpose(test_img,(2,0,1))
 
-                    inp_img=vis_patch(utforms.denormalize_lab(img.cpu()),utforms.denormalize_lab(skg.cpu()))
+                    out_img=vis_image(utforms.denormalize_lab(outputG.data.double().cpu()))
+                    out_img=(out_img*255).astype('uint8')
+                    out_img=np.transpose(out_img,(2,0,1))
+
+                    inp_img=vis_patch(utforms.denormalize_lab(img.cpu()),utforms.denormalize_lab(skg.cpu()),xcenter,ycenter,crop_size)
                     inp_img=(inp_img*255).astype('uint8')
                     inp_img=np.transpose(inp_img,(2,0,1))
 
-                    target_img=vis_image(utforms.denormalize_lab(img.cpu()))
-                    target_img=(target_img*255).astype('uint8')
-                    target_img=np.transpose(target_img,(2,0,1))
+                    tar_img=vis_image(utforms.denormalize_lab(img.cpu()))
+                    tar_img=(tar_img*255).astype('uint8')
+                    tar_img=np.transpose(tar_img,(2,0,1))
 
                     segment_img=vis_image((seg.cpu()))
                     segment_img=(segment_img*255).astype('uint8')
                     segment_img=np.transpose(segment_img,(2,0,1))
 
-                    vis.image(test_img,win='output',opts=dict(title='output'))
+                    vis.image(out_img,win='output',opts=dict(title='output'))
                     vis.image(inp_img,win='input',opts=dict(title='input'))  
-                    vis.image(target_img,win='target',opts=dict(title='target'))
+                    vis.image(tar_img,win='target',opts=dict(title='target'))
                     vis.image(segment_img,win='segment',opts=dict(title='segment'))
                     vis.line(np.array(Loss_gs_graph),win='gs',opts=dict(title='G-Style Loss'))
                     vis.line(np.array(Loss_g_graph),win='g',opts=dict(title='G Total Loss'))
                     vis.line(np.array(Loss_gd_graph),win='gd',opts=dict(title='G-Discriminator Loss'))
                     vis.line(np.array(Loss_gf_graph),win='gf',opts=dict(title='G-Feature Loss'))
-                    vis.line(np.array(Loss_gp_graph),win='gp',opts=dict(title='G-Pixel Loss'))
+                    vis.line(np.array(Loss_gpl_graph),win='gpl',opts=dict(title='G-Pixel Loss-L'))
+                    vis.line(np.array(Loss_gpab_graph),win='gpab',opts=dict(title='G-Pixel Loss-AB'))
                     vis.line(np.array(Loss_d_graph),win='d',opts=dict(title='D Loss'))
 
+#TODO, need to organize these func:
+def rand_between(a,b):
+    return a + torch.round(torch.rand(1)*(b-a))[0]
+
+def gen_input(img,skg,xcenter=64,ycenter=64,size=40):
+    #generate input skg with random patch from img
+    #input img,skg [bsx3xwxh], xcenter,ycenter, size 
+    #output bsx5xwxh
+       
+    w,h = img.size()[2:4]
+
+    xstart = max(xcenter-size/2,0)
+    ystart = max(ycenter-size/2,0)
+    xend = min(xcenter + size/2,w)
+    yend = min(ycenter + size/2,h)
+
+
+    input_texture = torch.ones(img.size())*(1)
+    input_sketch = skg[:,0:1,:,:] #L channel from skg
+    input_mask = torch.ones(input_sketch.size())*(-1)
+
+    input_mask[:,:,xstart:xend,ystart:yend] = 1
+    input_texture[:,:,xstart:xend,ystart:yend] = img[:,:,xstart:xend,ystart:yend].clone()
+
+    return torch.cat((input_sketch.float(),input_texture.float(),input_mask),1)
+     
+    
 #TODO: move to utils
 def clamp_image(img):
     img[:,0,:,:].clamp_(0,1)
@@ -333,15 +386,15 @@ def parse_arguments(argv):
     parser = argparse.ArgumentParser()
     
 ###############added options#######################################
-    parser.add_argument('-learning_rate', default=1e-8, type=float,
+    parser.add_argument('-learning_rate', default=1e-5, type=float,
                     help='Learning rate for the generator')
-    parser.add_argument('-learning_rate_D',  default=1e-5,type=float,
+    parser.add_argument('-learning_rate_D',  default=1e-4,type=float,
                     help='Learning rate for the discriminator')    
     
-    parser.add_argument('-gan', default='dcgan',type=str,choices=['dcgan', 'lsgan'],
+    parser.add_argument('-gan', default='lsgan',type=str,choices=['dcgan', 'lsgan'],
                     help='dcgan|lsgan') #todo wgan/improved wgan    
     
-    parser.add_argument('-model', default='pix2pix',type=str,choices=['scribbler', 'pix2pix'],
+    parser.add_argument('-model', default='scribbler',type=str,choices=['scribbler', 'pix2pix'],
                    help='scribbler|pix2pix')
     
     parser.add_argument('-num_epoch',  default=1,type=int,
@@ -355,10 +408,10 @@ def parse_arguments(argv):
                        help='weight ratio for feature loss')
     parser.add_argument('-pixel_weight_l', default=100,type=float,
                        help='weight ratio for pixel loss for l channel')
-    parser.add_argument('-pixel_weight_ab', default=100,type=float,
+    parser.add_argument('-pixel_weight_ab', default=500,type=float,
                    help='weight ratio for pixel loss for ab channel')
    
-    parser.add_argument('-discriminator_weight', default=1,type=float,
+    parser.add_argument('-discriminator_weight', default=1e1,type=float,
                    help='weight ratio for the discriminator loss')
     parser.add_argument('-style_weight', default = 1, type=float, 
                         help='weight ratio for the texture loss')
@@ -373,23 +426,32 @@ def parse_arguments(argv):
     parser.add_argument('-data_path', default='/home/psangkloy3/training_handbags_pretrain/',type=str,
                    help='path to the data directory, expect train_skg, train_img, val_skg, val_img')
 
-    parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir',type=str,
+    parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir_first_test',type=str,
                    help='path to save the model')
+    
+    parser.add_argument('-load_dir', default='/home/psangkloy3/texturegan/save_dir_first_test',type=str,
+                   help='path to save the model')
+    
     parser.add_argument('-save_every',  default=1000,type=int,
                     help='no. iteration to save the models')
     
-    parser.add_argument('-load', default=1000,type=int,
+    parser.add_argument('-load', default=17100,type=int,
                    help='load generator and discrminator from iteration n')
-    parser.add_argument('-load_D', default=1000,type=float,
+    parser.add_argument('-load_D', default=17100,type=float,
                    help='load discriminator from iteration n, priority over load')
     
-    parser.add_argument('-image_size',default=224,type=int,
+    parser.add_argument('-image_size',default=128,type=int,
                     help='Training images size, after cropping')        
     parser.add_argument('-resize_max',  default=1,type=int,
                     help='max resize, ratio of the original image, max value is 1')        
     parser.add_argument('-resize_min',  default=0.6,type=int,
                     help='min resize, ratio of the original image, min value 0')   
+    parser.add_argument('-crop_size_min',default=20,type=int,
+                    help='minumum texture patch size')   
+    parser.add_argument('-crop_size_max',default=40,type=int,
+                    help='max texture patch size')  
     
+    parser.add_argument('-batch_size', default=8) #fixed batch size 1    
 ############################################################################
 ############################################################################
 ############TODO: TO ADD#################################################################
@@ -398,9 +460,7 @@ def parse_arguments(argv):
     parser.add_argument('-content_layers',  default='relu2_2',type=str,
                     help='Layer to attach content loss.')
     
-    parser.add_argument('-batch_size', default=1) #fixed batch size 1
-    
-    
+
 
     
     parser.add_argument('-mode',  default='texture',type=str,choices=['texture','scribbler'],
@@ -435,6 +495,7 @@ def parse_arguments(argv):
 ##################################################################################################################################    
     
     return parser.parse_args(argv)
+
 if __name__ == '__main__':
     main(parse_arguments(sys.argv[1:]))
     

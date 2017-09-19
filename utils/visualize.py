@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 import transforms
 
-def vis_patch(img,skg,xcenter=128,ycenter=128,size=40):
+def vis_patch(img,skg,xcenter=64,ycenter=64,size=40):
     ToRGB = transforms.toRGB()
     img_np = ToRGB(img[0])
     skg_np = ToRGB(skg[0])

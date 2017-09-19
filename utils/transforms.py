@@ -4,7 +4,7 @@ from PIL import Image
 import numpy as np
 import torch
 
-
+import torchvision.transforms
 import torch
 import math
 import random
@@ -70,9 +70,9 @@ def normalize_lab(lab_img):
     mean[:,1,:,:] = 0
     mean[:,2,:,:] = 0
     
-    stds[:,0,:,:] = 60
-    stds[:,1,:,:] = 160
-    stds[:,2,:,:] = 160
+    stds[:,0,:,:] = 50
+    stds[:,1,:,:] = 128
+    stds[:,2,:,:] = 128
     
     return (lab_img.double() - mean.double())/stds.double()
 
@@ -95,9 +95,11 @@ def denormalize_lab(lab_img):
     mean[:,1,:,:] = 0
     mean[:,2,:,:] = 0
     
-    stds[:,0,:,:] = 60
-    stds[:,1,:,:] = 160
-    stds[:,2,:,:] = 160
+    stds[:,0,:,:] = 50
+    stds[:,1,:,:] = 128
+    stds[:,2,:,:] = 128
+    
+    
     
     return lab_img.double() *stds.double() + mean.double()
 
