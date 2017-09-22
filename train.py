@@ -186,8 +186,18 @@ def main(args):
 
 
                 ##################style Loss############################
-                output_feat_ = Extract_style(outputlll)
-                target_feat_ = Extract_style(targetlll)
+                if args.local_texture_size == -1: #global
+                    output_feat_ = Extract_style(outputlll)
+                    target_feat_ = Extract_style(targetlll)
+                else:
+                    patchsize = args.local_texture_size
+                    x = int( rand_between(patchsize,args.image_size-patchsize))
+                    y = int( rand_between(patchsize,args.image_size-patchsize))
+
+                    texture_patch = outputlll[:,:,x:(x+patchsize),y:(y+patchsize)]
+                    gt_texture_patch = targetlll[:,:,x:(x+patchsize),y:(y+patchsize)]
+                    output_feat_ = Extract_style(texture_patch)
+                    target_feat_ = Extract_style(gt_texture_patch)
 
                 gram = GramMatrix()
 
