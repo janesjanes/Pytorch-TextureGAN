@@ -38,12 +38,11 @@ from networks import define_G, weights_init
 from models import scribbler 
 import visdom
 
-def main(args):
-
 #TODO: visdom show the whole batch and on test set
 #TODO: index to name mapping for vgg layers
 #TODO: rgb/lab option
-
+def main(args):
+    
     with torch.cuda.device(args.gpu):
 
         vis=visdom.Visdom(port=args.display_port)
@@ -55,8 +54,16 @@ def main(args):
         Loss_gpab_graph = []    
         Loss_gs_graph = []
         Loss_d_graph=[]
-
-        ts=custom_trans.Compose([custom_trans.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),custom_trans.RandomHorizontalFlip() ,custom_trans.toLAB(), custom_trans.toTensor()])
+        #for rgb the change is to feed 3 channels to D instead of just 1. and feed 3 channels to vgg. 
+        #can leave pixel separate between r and gb for now. assume user use the same weights
+        if args.color_space == 'lab':
+            ts=custom_trans.Compose([custom_trans.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),
+                                     custom_trans.RandomHorizontalFlip() ,custom_trans.toLAB(), custom_trans.toTensor()])
+        elif args.color_space == 'rgb':
+            ts=custom_trans.Compose([custom_trans.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),
+                                     custom_trans.RandomHorizontalFlip() ,custom_trans.toRGB('RGB'), custom_trans.toTensor()])
+            args.pixel_weight_ab = args.pixel_weight_rgb
+            args.pixel_weight_l = args.pixel_weight_rgb
         rgbify = custom_trans.toRGB()
         dset = ImageFolder(args.data_path,ts)
         dataloader=DataLoader(dataset=dset, batch_size=args.batch_size, shuffle=True)
@@ -74,7 +81,10 @@ def main(args):
         else:
             print(args.model+ ' not support. Using pix2pix model')
             netG=define_G(5,3,32)
-        netD=discriminator.Discriminator(1,32,sigmoid_flag)  
+        if args.color_space =='lab':
+            netD=discriminator.Discriminator(1,32,sigmoid_flag) 
+        elif args.color_space =='rgb':
+            netD=discriminator.Discriminator(3,32,sigmoid_flag) 
         feat_model=models.vgg19(pretrained=True)
         if args.load == -1:
             netG.apply(weights_init)
@@ -134,9 +144,15 @@ def main(args):
                 netG.zero_grad()
 
                 img, skg,seg = data #LAB with negeative value
+                #output img/skg/seg rgb between 0-1
+                #output img/skg/seg lab between 0-100, -128-128 
+                if args.color_space =='lab':
+                    img=utforms.normalize_lab(img)
+                    skg=utforms.normalize_lab(skg)
+                elif args.color_space =='rgb':
+                    img=utforms.normalize_rgb(img)
+                    skg=utforms.normalize_rgb(skg)  
 
-                img=utforms.normalize_lab(img)
-                skg=utforms.normalize_lab(skg)
                 #skg = torch.round(skg)
                # break
                 #randomize patch position/size
@@ -168,8 +184,12 @@ def main(args):
                 targetab = torch.cat((targeta,targetb),1)
 
                 #TODO renormalize with the right mean (but shouldn't matter much, it's around 0.5 anyway)
-                outputlll= (torch.cat((outputl,outputl,outputl),1))
-                targetlll = (torch.cat((targetl,targetl,targetl),1))
+                if args.color_space =='lab':
+                    outputlll= (torch.cat((outputl,outputl,outputl),1))
+                    targetlll = (torch.cat((targetl,targetl,targetl),1))
+                elif args.color_space =='rgb':
+                    outputlll= outputG#(torch.cat((outputl,outputl,outputl),1))
+                    targetlll = targetv#(torch.cat((targetl,targetl,targetl),1))                
 
                 ##################Pixel L Loss############################
                 err_pixel_l = args.pixel_weight_l*criterion_pixel_l(outputl,targetl)
@@ -186,6 +206,8 @@ def main(args):
 
 
                 ##################style Loss############################
+
+
                 if args.local_texture_size == -1: #global
                     output_feat_ = Extract_style(outputlll)
                     target_feat_ = Extract_style(targetlll)
@@ -198,6 +220,9 @@ def main(args):
                     gt_texture_patch = targetlll[:,:,x:(x+patchsize),y:(y+patchsize)]
                     output_feat_ = Extract_style(texture_patch)
                     target_feat_ = Extract_style(gt_texture_patch)
+
+
+
 
                 gram = GramMatrix()
 
@@ -213,8 +238,10 @@ def main(args):
                 ##################D Loss############################
                 netD.zero_grad()
                 label_ = Variable(label)
-                outputD = netD(outputl)
-
+                if args.color_space =='lab':
+                    outputD = netD(outputl)
+                elif args.color_space =='rgb':
+                    outputD = netD(outputG)
                 #D_G_z2 = outputD.data.mean()
 
                 label.resize_(outputD.data.size())
@@ -246,8 +273,10 @@ def main(args):
                 netD.zero_grad()
 
                 labelv = Variable(label)
-
-                outputD = netD(targetl)
+                if args.color_space =='lab':
+                    outputD = netD(targetl)
+                elif args.color_space =='rgb':
+                    outputD = netD(targetv)
 
                 label.resize_(outputD.data.size())
                 labelv = Variable(label.fill_(real_label))
@@ -263,7 +292,10 @@ def main(args):
 
                 ##################################
                 #TODO add threshold to stop updating D
-                outputD = netD(outputl.detach())
+                if args.color_space =='lab':
+                    outputD = netD(outputl.detach())
+                elif args.color_space =='rgb':
+                    outputD = netD(outputG.detach())
                 label.resize_(outputD.data.size())
                 labelv = Variable(label.fill_(fake_label))
 
@@ -282,22 +314,27 @@ def main(args):
 
                 #TODO test on test set
                 if(i%args.visualize_every==0):
+                    if args.color_space == 'lab':
+                        out_img=vis_image(utforms.denormalize_lab(outputG.data.double().cpu()),args.color_space)
+                        inp_img=vis_patch(utforms.denormalize_lab(img.cpu()),utforms.denormalize_lab(skg.cpu()),xcenter,ycenter,crop_size,args.color_space)
+                        tar_img=vis_image(utforms.denormalize_lab(img.cpu()),args.color_space)
+                    elif args.color_space =='rgb':
+                        out_img=vis_image(utforms.denormalize_rgb(outputG.data.double().cpu()),args.color_space)
+                        inp_img=vis_patch(utforms.denormalize_rgb(img.cpu()),utforms.denormalize_rgb(skg.cpu()),xcenter,ycenter,crop_size,args.color_space)
+                        tar_img=vis_image(utforms.denormalize_rgb(img.cpu()),args.color_space)                    
+                    out_img=(out_img*255)#.astype('uint8')
+                    #out_img=np.transpose(out_img,(2,0,1))
 
-                    out_img=vis_image(utforms.denormalize_lab(outputG.data.double().cpu()))
-                    out_img=(out_img*255).astype('uint8')
-                    out_img=np.transpose(out_img,(2,0,1))
+                    inp_img=(inp_img*255)#.astype('uint8')
+                    #inp_img=np.transpose(inp_img,(2,0,1))
 
-                    inp_img=vis_patch(utforms.denormalize_lab(img.cpu()),utforms.denormalize_lab(skg.cpu()),xcenter,ycenter,crop_size)
-                    inp_img=(inp_img*255).astype('uint8')
-                    inp_img=np.transpose(inp_img,(2,0,1))
 
-                    tar_img=vis_image(utforms.denormalize_lab(img.cpu()))
-                    tar_img=(tar_img*255).astype('uint8')
-                    tar_img=np.transpose(tar_img,(2,0,1))
+                    tar_img=(tar_img*255)#.astype('uint8')
+                    #tar_img=np.transpose(tar_img,(2,0,1))
 
-                    segment_img=vis_image((seg.cpu()))
-                    segment_img=(segment_img*255).astype('uint8')
-                    segment_img=np.transpose(segment_img,(2,0,1))
+                    segment_img=vis_image((seg.cpu()),args.color_space)
+                    segment_img=(segment_img*255)#.astype('uint8')
+                    #segment_img=np.transpose(segment_img,(2,0,1))
 
                     vis.image(out_img,win='output',opts=dict(title='output'))
                     vis.image(inp_img,win='input',opts=dict(title='input'))  
@@ -311,7 +348,10 @@ def main(args):
                     vis.line(np.array(Loss_gpab_graph),win='gpab',opts=dict(title='G-Pixel Loss-AB'))
                     vis.line(np.array(Loss_d_graph),win='d',opts=dict(title='D Loss'))
 
+                
+
 #TODO, need to organize these func:
+#all in one place funcs, need to organize these:
 def rand_between(a,b):
     return a + torch.round(torch.rand(1)*(b-a))[0]
 
@@ -337,29 +377,21 @@ def gen_input(img,skg,xcenter=64,ycenter=64,size=40):
 
     return torch.cat((input_sketch.float(),input_texture.float(),input_mask),1)
      
-    
-#TODO: move to utils
-def clamp_image(img):
-    img[:,0,:,:].clamp_(0,1)
-    img[:,1,:,:].clamp_(-1.5,1.5)
-    img[:,2,:,:].clamp_(-1.5,1.5)
-    return img 
+class GramMatrix(nn.Module):
 
-#TODO: move to model function
-def save_network(model, network_label, epoch_label, gpu_id, save_dir):
-    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    save_path = os.path.join(save_dir, save_filename)
-    torch.save(model.cpu().state_dict(), save_path)
-    model.cuda(device_id=gpu_id)
-#TODO: move to model function    
-def load_network(model, network_label, epoch_label,save_dir):
-    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
-    save_path = os.path.join(save_dir, save_filename)
-    model.load_state_dict(torch.load(save_path))
+    def forward(self, input):
+        a, b, c, d = input.size()  # a=batch size(=1)
+        # b=number of feature maps
+        # (c,d)=dimensions of a f. map (N=c*d)
+
+        features = input.view(a , b, c * d)  # resise F_XL into \hat F_XL
+
+        G = torch.bmm(features, features.transpose(1,2))  # compute the gram product
+
+        # normalize the values of the gram matrix
+        # by dividing by the number of element in each feature maps.
+        return G.div( b * c * d)
     
-#TODO move to utils
 class FeatureExtractor(nn.Module):
     # Extract features from intermediate layers of a network
 
@@ -376,21 +408,18 @@ class FeatureExtractor(nn.Module):
                 outputs += [x]
         return outputs + [x]
     
-#TODO move to separate loss file
-class GramMatrix(nn.Module):
-
-    def forward(self, input):
-        a, b, c, d = input.size()  # a=batch size(=1)
-        # b=number of feature maps
-        # (c,d)=dimensions of a f. map (N=c*d)
-
-        features = input.view(a * b, c * d)  # resise F_XL into \hat F_XL
-
-        G = torch.mm(features, features.t())  # compute the gram product
-
-        # normalize the values of the gram matrix
-        # by dividing by the number of element in each feature maps.
-        return G.div(a * b * c * d)
+def save_network(model, network_label, epoch_label, gpu_id, save_dir):
+    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path = os.path.join(save_dir, save_filename)
+    torch.save(model.cpu().state_dict(), save_path)
+    model.cuda(device_id=gpu_id)
+def load_network(model, network_label, epoch_label,save_dir):
+    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
+    save_path = os.path.join(save_dir, save_filename)
+    model.load_state_dict(torch.load(save_path))
+    
     
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
@@ -414,14 +443,16 @@ def parse_arguments(argv):
                     help='no. iteration to visualize the results')      
 
     #all the weights ratio, might wanna make them sum to one
-    parser.add_argument('-feature_weight', default=1,type=float,
+    parser.add_argument('-feature_weight', default=100,type=float,
                        help='weight ratio for feature loss')
-    parser.add_argument('-pixel_weight_l', default=100,type=float,
+    parser.add_argument('-pixel_weight_l', default=400,type=float,
                        help='weight ratio for pixel loss for l channel')
-    parser.add_argument('-pixel_weight_ab', default=500,type=float,
+    parser.add_argument('-pixel_weight_ab', default=800,type=float,
                    help='weight ratio for pixel loss for ab channel')
-   
-    parser.add_argument('-discriminator_weight', default=1e1,type=float,
+    parser.add_argument('-pixel_weight_rgb', default=800,type=float,
+                   help='weight ratio for pixel loss for ab channel')
+    
+    parser.add_argument('-discriminator_weight', default=2e1,type=float,
                    help='weight ratio for the discriminator loss')
     parser.add_argument('-style_weight', default = 1, type=float, 
                         help='weight ratio for the texture loss')
@@ -430,13 +461,13 @@ def parse_arguments(argv):
     parser.add_argument('-gpu', default=1,type=int,
                    help='id of gpu to use') #TODO support cpu
 
-    parser.add_argument('-display_port', default=8889,type=int,
+    parser.add_argument('-display_port', default=7779,type=int,
                help='port for displaying on visdom (need to match with visdom currently open port)')
 
     parser.add_argument('-data_path', default='/home/psangkloy3/training_handbags_pretrain/',type=str,
                    help='path to the data directory, expect train_skg, train_img, val_skg, val_img')
 
-    parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir_first_test',type=str,
+    parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir_scribbler',type=str,
                    help='path to save the model')
     
     parser.add_argument('-load_dir', default='/home/psangkloy3/texturegan/save_dir_first_test',type=str,
@@ -445,9 +476,9 @@ def parse_arguments(argv):
     parser.add_argument('-save_every',  default=1000,type=int,
                     help='no. iteration to save the models')
     
-    parser.add_argument('-load', default=17100,type=int,
+    parser.add_argument('-load', default=-1,type=int,
                    help='load generator and discrminator from iteration n')
-    parser.add_argument('-load_D', default=17100,type=float,
+    parser.add_argument('-load_D', default=-1,type=float,
                    help='load discriminator from iteration n, priority over load')
     
     parser.add_argument('-image_size',default=128,type=int,
@@ -461,7 +492,13 @@ def parse_arguments(argv):
     parser.add_argument('-crop_size_max',default=40,type=int,
                     help='max texture patch size')  
     
-    parser.add_argument('-batch_size', default=8) #fixed batch size 1    
+    parser.add_argument('-batch_size', default=8)     
+    
+    parser.add_argument('-local_texture_size', default=50,type=int,
+                   help='use local texture loss instead of global, set -1 to use global')
+    parser.add_argument('-color_space',  default='rgb',type=str,choices=['lab','rgb'],
+                help='lab|rgb') 
+    
 ############################################################################
 ############################################################################
 ############TODO: TO ADD#################################################################
