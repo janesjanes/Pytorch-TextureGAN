@@ -26,7 +26,7 @@ def make_dot(var, params=None):
     seen = set()
 
     def size_to_str(size):
-        return '('+(', ').join(['%d' % v for v in size])+')'
+        return '(' + ', '.join(['%d' % v for v in size])+')'
 
     def add_nodes(var):
         if var not in seen:

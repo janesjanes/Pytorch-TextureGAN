@@ -4,13 +4,13 @@ import torch.nn as nn
 
 class TextureGAN(nn.Module):
     def __init__(self, input_nc, output_nc, ngf):
-        '''
+        """
         Defines the necessary modules of the TextureGAN Generator
 
         Input:
         - int input_nc : Input number of channels
         - int output_nc : Output number of channels
-        '''
+        """
         super(TextureGAN, self).__init__()
 
         self.conv = nn.Conv2d
@@ -34,15 +34,15 @@ class TextureGAN(nn.Module):
 
         return skip_block
     
-    def forward(self,input):
-		return self.model(input)
+    def forward(self, x):
+        return self.model(x)
+
 
 class MainModel(nn.Module):
     def __init__(self, input_nc, output_nc, ngf):
-
-        '''
+        """
         Function which pieces together the model
-        '''
+        """
         super(MainModel, self).__init__()
         self.conv = nn.Conv2d
         self.batch_norm = nn.BatchNorm2d
@@ -54,16 +54,16 @@ class MainModel(nn.Module):
         self.biup = UpsamplingBlock
         model = nn.Sequential()
         
-        model.add_module('conv_1',self.conv(input_nc,ngf,3,1,1))
-        model.add_module('batch_1',self.batch_norm(ngf))
-        model.add_module('norm_1',nn.ReLU(True))
+        model.add_module('conv_1', self.conv(input_nc,ngf,3,1,1))
+        model.add_module('batch_1', self.batch_norm(ngf))
+        model.add_module('norm_1', nn.ReLU(True))
 
         model.add_module('res_block_1', self.res_block(ngf,ngf))
-        model.add_module('conv_2',self.conv(ngf,ngf*2,3,2,1))
+        model.add_module('conv_2', self.conv(ngf,ngf*2,3,2,1))
         model.add_module('batch_2',self.batch_norm(ngf*2))
-        model.add_module('norm_2',nn.ReLU(True))
+        model.add_module('norm_2', nn.ReLU(True))
 
-        model.add_module('res_block_2',self.res_block(ngf*2,ngf*2))
+        model.add_module('res_block_2', self.res_block(ngf*2,ngf*2))
 
         model.add_module('conv_3',self.conv(ngf*2,ngf*4,3,2,1))
         model.add_module('batch_3',self.batch_norm(ngf*4))
@@ -102,14 +102,14 @@ class MainModel(nn.Module):
         self.main_model = model
 
 
-    def forward(self, input):
-        return torch.cat((self.main_model(input), input), 1)
+    def forward(self, x):
+        return torch.cat((self.main_model(x), x), 1)
         #return self.main_model(input)
 
 
 class UpsamplingBlock(nn.Module):
     def __init__(self, input_nc, output_nc, kernel, stride, pad):
-        '''
+        """
         Single block of upsampling operation
 
         Input:
@@ -118,7 +118,7 @@ class UpsamplingBlock(nn.Module):
         - int kernel      : Kernel size
         - int stride	  : Stride length
         - int pad         : Padd_moduleing
-        '''
+        """
         super(UpsamplingBlock, self).__init__()
 
         conv = nn.Conv2d
@@ -130,8 +130,8 @@ class UpsamplingBlock(nn.Module):
 
         self.biup_block = block
 
-    def forward(self, input):
-        return self.biup_block(input)
+    def forward(self, x):
+        return self.biup_block(x)
 
 
 # 3x3 Convolution

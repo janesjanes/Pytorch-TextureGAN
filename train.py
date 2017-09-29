@@ -1,43 +1,34 @@
-#from __future__ import print_function
-#from __future__ import absolute_import
-#from __future__ import division
-
-
-import torch 
+import torch
 import torch.nn as nn
-from torch.autograd import Variable
-import torchvision.datasets as dataset
-import visdom
-import sys,argparse,os
 
-from models import scribbler, discriminator, texturegan, localDiscriminator
+from .models import scribbler, discriminator, texturegan, localDiscriminator
 import torch.optim as optim
+from torch.autograd import Variable
 
+import sys, os
 from skimage import color
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
-import torch
-import torchvision.transforms as transforms
-import visualize
-import torch.nn as nn
-from torch.autograd import Variable
+import visdom
 from IPython.display import display
 import torchvision.models as models
 from dataloader import imfol
 from torch.utils.data.sampler import SequentialSampler
 
 from utils.visualize import vis_patch, vis_image
-        
+
 from torch.utils.data import DataLoader
 from dataloader.imfol import ImageFolder, make_dataset
-from utils import transforms as custom_trans
-import torchvision.transforms as tforms
-import utils.transforms as utforms
 
-from networks import define_G, weights_init
-from models import scribbler 
-import visdom
+from utils import transforms as custom_transforms
+import utils.transforms as utforms
+from utils.visualize import vis_patch, vis_image
+from models import scribbler, discriminator
+from .networks import define_G, weights_init
+from .models import scribbler
+import argparser
+
 
 #TODO: finetuning DTD
 #TODO: unmatch the sketch/texture input patch location for DTD
@@ -61,14 +52,24 @@ def main(args):
         #for rgb the change is to feed 3 channels to D instead of just 1. and feed 3 channels to vgg. 
         #can leave pixel separate between r and gb for now. assume user use the same weights
         if args.color_space == 'lab':
-            transform=custom_trans.Compose([custom_trans.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),
-                                     custom_trans.RandomHorizontalFlip() ,custom_trans.toLAB(), custom_trans.toTensor()])
+            transform = custom_transorms.Compose([
+                custom_transforms.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),
+                custom_transforms.RandomHorizontalFlip(),
+                custom_transforms.toLAB(),
+                custom_transforms.toTensor()
+            ])
+
         elif args.color_space == 'rgb':
-            transform=custom_trans.Compose([custom_trans.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),
-                                     custom_trans.RandomHorizontalFlip() ,custom_trans.toRGB('RGB'), custom_trans.toTensor()])
+            transform = custom_transforms.Compose([
+                custom_transforms.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),
+                custom_transforms.RandomHorizontalFlip(),
+                custom_transforms.toRGB('RGB'),
+                custom_transforms.toTensor()
+            ])
             args.pixel_weight_ab = args.pixel_weight_rgb
             args.pixel_weight_l = args.pixel_weight_rgb
-        rgbify = custom_trans.toRGB()
+
+        rgbify = custom_transforms.toRGB()
         trainDset = ImageFolder('train', args.data_path, transform)
         trainLoader = DataLoader(dataset=trainDset, batch_size=args.batch_size, shuffle=True)
 
@@ -83,19 +84,20 @@ def main(args):
         if args.gan =='lsgan':
             sigmoid_flag = 0 
 
-        if args.model=='scribbler':
-            netG=scribbler.Scribbler(5,3,32)
+        if args.model == 'scribbler':
+            netG = scribbler.Scribbler(5, 3, 32)
         elif args.model == 'texturegan':
-             netG = texturegan.TextureGAN(5, 3, 32)    
-        elif args.model=='pix2pix':
-            netG=define_G(5,3,32)
+            netG = texturegan.TextureGAN(5, 3, 32)
+        elif args.model == 'pix2pix':
+            netG = define_G(5, 3, 32)
         else:
-            print(args.model+ ' not support. Using pix2pix model')
-            netG=define_G(5,3,32)
-        if args.color_space =='lab':
-            netD=discriminator.Discriminator(1,32,sigmoid_flag) 
-        elif args.color_space =='rgb':
-            netD=discriminator.Discriminator(3,32,sigmoid_flag) 
+            print(args.model + ' not support. Using Scribbler model')
+            netG = scribbler.Scribbler(5, 3, 32)
+
+        if args.color_space == 'lab':
+            netD = discriminator.Discriminator(1,32,sigmoid_flag)
+        elif args.color_space == 'rgb':
+            netD = discriminator.Discriminator(3,32,sigmoid_flag)
         feat_model=models.vgg19(pretrained=True)
         if args.load == -1:
             netG.apply(weights_init)
@@ -113,6 +115,9 @@ def main(args):
             criterion_gan = nn.MSELoss()
         elif args.gan =='dcgan':
             criterion_gan = nn.BCELoss()
+        else:
+            raise Warning("Undefined GAN type. Defaulting to LSGAN")
+            criterion_gan = nn.MSELoss()
 
         #criterion_l1 = nn.L1Loss()
         criterion_pixel_l = nn.L1Loss()
@@ -274,8 +279,7 @@ def main(args):
                 Loss_gs_graph.append(err_style.data[0])
                 #plt.imshow(vis_image(inputv.data.double().cpu()))
 
-                print 'G:', i, err_G.data[0]            
-
+                print('G:', i, err_G.data[0])
 
                 ############################
                 # (2) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -338,19 +342,14 @@ def main(args):
                 else:
                     Loss_d_graph.append(0)
 
+                print('D:', 'real_acc', "%.2f" %real_acc.data[0], 'fake_acc', "%.2f" %fake_acc.data[0] ,'D_acc',D_acc.data[0])
+                if i % args.save_every == 0:
+                    save_network(netG, 'G', i, args.gpu, args.save_dir)
+                    save_network(netD, 'D', i, args.gpu, args.save_dir)
 
-
-                print 'D:', 'real_acc', "%.2f" %real_acc.data[0], 'fake_acc', "%.2f" %fake_acc.data[0] ,'D_acc',D_acc.data[0]
-                if(i%args.save_every==0):
-                    save_network(netG,'G',i,args.gpu,args.save_dir)
-                    save_network(netD,'D',i,args.gpu,args.save_dir)
-
-
-
-                if(i%args.visualize_every==0):
+                if i % args.visualize_every == 0:
                     imgs = []
                     for ii, data in enumerate(valLoader, 0):
-
                         img, skg, seg,txt = data #LAB with negeative value
                         #this is in LAB value 0/100, -128/128 etc
                         img=utforms.normalize_lab(img)
@@ -440,10 +439,10 @@ def main(args):
 
 
 
-
-#all in one place funcs, need to organize these:
+# all in one place funcs, need to organize these:
 def rand_between(a,b):
     return a + torch.round(torch.rand(1)*(b-a))[0]
+
 
 def gen_input(img,skg,ini_texture,ini_mask,xcenter=64,ycenter=64,size=40):
     #generate input skg with random patch from img
@@ -468,6 +467,7 @@ def gen_input(img,skg,ini_texture,ini_mask,xcenter=64,ycenter=64,size=40):
     input_texture[:,xstart:xend,ystart:yend] = img[:,xstart:xend,ystart:yend].clone()
 
     return torch.cat((input_sketch.cpu().float(),input_texture.float(),input_mask),0)
+
 
 def gen_input_rand(img,skg,seg,size_min=40,size_max=60,num_patch=1):
     #generate input skg with random patch from img
@@ -514,6 +514,7 @@ def gen_input_rand(img,skg,seg,size_min=40,size_max=60,num_patch=1):
         results[i,:,:,:] = res
     return results,text_info
 
+
 class GramMatrix(nn.Module):
 
     def forward(self, input):
@@ -546,13 +547,13 @@ class FeatureExtractor(nn.Module):
         return outputs + [x]
 
 def renormalize(img):
-    '''
+    """
     Renormalizes the input image to meet requirements for VGG-19 pretrained network
-    '''
+    """
     
     forward_norm = torch.ones(img.data.size())*0.5
     forward_norm = Variable(forward_norm.cuda())
-    img=img*(forward_norm)+forward_norm #add previous norm 
+    img = (img * forward_norm) + forward_norm  # add previous norm
     #return img
     mean = img.data.new(img.data.size())
     std = img.data.new(img.data.size())
@@ -567,6 +568,7 @@ def renormalize(img):
     
     return img    
 
+
 def save_network(model, network_label, epoch_label, gpu_id, save_dir):
     save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
     if not os.path.exists(save_dir):
@@ -574,143 +576,15 @@ def save_network(model, network_label, epoch_label, gpu_id, save_dir):
     save_path = os.path.join(save_dir, save_filename)
     torch.save(model.cpu().state_dict(), save_path)
     model.cuda(device_id=gpu_id)
+
+
 def load_network(model, network_label, epoch_label,save_dir):
     save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
     save_path = os.path.join(save_dir, save_filename)
-    model.load_state_dict(torch.load(save_path))    
-    
-def parse_arguments(argv):
-    parser = argparse.ArgumentParser()
-    
-###############added options#######################################
-    parser.add_argument('-learning_rate', default=1e-5, type=float,
-                    help='Learning rate for the generator')
-    parser.add_argument('-learning_rate_D',  default=1e-4,type=float,
-                    help='Learning rate for the discriminator')    
-    
-    parser.add_argument('-gan', default='lsgan',type=str,choices=['dcgan', 'lsgan'],
-                    help='dcgan|lsgan') #todo wgan/improved wgan    
-    
-    parser.add_argument('-model', default='pix2pix',type=str,choices=['scribbler', 'pix2pix', 'texturegan'],
-                    help='scribbler|pix2pix|texturegan')
-    
-    parser.add_argument('-num_epoch',  default=1,type=int,
-                    help='texture|scribbler')   
-    
-    parser.add_argument('-visualize_every',  default=10,type=int,
-                    help='no. iteration to visualize the results')      
-
-    #all the weights ratio, might wanna make them sum to one
-    parser.add_argument('-feature_weight', default=100,type=float,
-                       help='weight ratio for feature loss')
-    parser.add_argument('-pixel_weight_l', default=400,type=float,
-                       help='weight ratio for pixel loss for l channel')
-    parser.add_argument('-pixel_weight_ab', default=800,type=float,
-                   help='weight ratio for pixel loss for ab channel')
-    parser.add_argument('-pixel_weight_rgb', default=800,type=float,
-                   help='weight ratio for pixel loss for ab channel')
-    
-    parser.add_argument('-discriminator_weight', default=2e1,type=float,
-                   help='weight ratio for the discriminator loss')
-    parser.add_argument('-style_weight', default = 1, type=float, 
-                        help='weight ratio for the texture loss')
-
-
-    parser.add_argument('-gpu', default=1,type=int,
-                   help='id of gpu to use') #TODO support cpu
-
-    parser.add_argument('-display_port', default=7780,type=int,
-               help='port for displaying on visdom (need to match with visdom currently open port)')
-
-    parser.add_argument('-data_path', default='/home/psangkloy3/training_handbags_pretrain/',type=str,
-                   help='path to the data directory, expect train_skg, train_img, val_skg, val_img')
-
-    parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir_scribbler',type=str,
-                   help='path to save the model')
-    
-    parser.add_argument('-load_dir', default='/home/psangkloy3/texturegan/catdog/',type=str,
-                   help='path to save the model')
-    
-    parser.add_argument('-save_every',  default=1000,type=int,
-                    help='no. iteration to save the models')
-    
-    parser.add_argument('-load', default=-1,type=int,
-                   help='load generator and discrminator from iteration n')
-    parser.add_argument('-load_D', default=-1,type=float,
-                   help='load discriminator from iteration n, priority over load')
-    
-    parser.add_argument('-image_size',default=128,type=int,
-                    help='Training images size, after cropping')        
-    parser.add_argument('-resize_max',  default=1,type=int,
-                    help='max resize, ratio of the original image, max value is 1')        
-    parser.add_argument('-resize_min',  default=0.6,type=int,
-                    help='min resize, ratio of the original image, min value 0')   
-    parser.add_argument('-patch_size_min',default=20,type=int,
-                    help='minumum texture patch size')   
-    parser.add_argument('-patch_size_max',default=40,type=int,
-                    help='max texture patch size')  
-    
-    parser.add_argument('-batch_size', default=8,type=int)  
-    
-    parser.add_argument('-num_input_texture_patch', default=2)  
-    
-    parser.add_argument('-local_texture_size', default=50,type=int,
-                   help='use local texture loss instead of global, set -1 to use global')
-    parser.add_argument('-color_space',  default='lab',type=str,choices=['lab','rgb'],
-                help='lab|rgb')
-    
-    parser.add_argument('-threshold_D_max',  default=0.8,type=int,
-                    help='stop updating D when accuracy is over max')
-    
-    parser.add_argument('-content_layers',  default='relu4_2',type=str,
-                    help='Layer to attach content loss.')
-    parser.add_argument('-style_layers',  default='relu3_2, relu4_2',type=str,
-    help='Layer to attach content loss.')   
-    
-    parser.add_argument('-use_segmentation_patch', default=True,type=bool,
-                   help='whether or not to inject noise into the network')
-
-    parser.add_argument('-input_texture_patch', default='original_image',type=str,choices=['original_image','dtd_texture'],
-               help='whether or not to inject noise into the network')
-############################################################################
-############################################################################
-############TODO: TO ADD#################################################################
-    parser.add_argument('-tv_weight', default=1,type=float,
-                   help='weight ratio for total variation loss')
-
-    
-    parser.add_argument('-threshold_D_min',  default=0.3,type=int,
-                    help='stop updating G when accuracy is below min')
-
-    
-    parser.add_argument('-mode',  default='texture',type=str,choices=['texture','scribbler'],
-                    help='texture|scribbler') 
-    
-   
-    parser.add_argument('-crop',  default='random',type=str,choices=['random','center'],
-                    help='random|center')
-    
-    parser.add_argument('-contrast',  default=True,type=bool,
-                    help='randomly adjusting contrast on sketch')
-    
-    parser.add_argument('-occlude', default=False,type=bool,
-                       help='randomly occlude part of the sketch')
-    
-    
-    parser.add_argument('-checkpoints_path', default='data/',type=str,
-                   help='output directory for results and models')
-    
-
-    
-    parser.add_argument('-noise_gen', default=False,type=bool,
-                   help='whether or not to inject noise into the network')
-    
-    
-    parser.add_argument('-absolute_load', default='',type=str,
-                   help='load saved generator model from absolute location')
-    return parser.parse_args(argv)
+    model.load_state_dict(torch.load(save_path))
 
 
 if __name__ == '__main__':
-    main(parse_arguments(sys.argv[1:]))
+    args = argparser.parse_arguments()
+    main(args)
     
