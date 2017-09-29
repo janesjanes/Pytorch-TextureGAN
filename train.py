@@ -10,7 +10,7 @@ import torchvision.datasets as dataset
 import visdom
 import sys,argparse,os
 
-from models import scribbler, discriminator
+from models import scribbler, discriminator, texturegan, localDiscriminator
 import torch.optim as optim
 
 from skimage import color
@@ -69,12 +69,15 @@ def main(args):
 
         if args.model=='scribbler':
             netG=scribbler.Scribbler(5,3,32)
+        if args.model == 'texturegan':
+            netG = texturegan.TextureGAN(5, 3, 32)
         elif args.model=='pix2pix':
             netG=define_G(5,3,32)
         else:
             print(args.model+ ' not support. Using pix2pix model')
             netG=define_G(5,3,32)
-        netD=discriminator.Discriminator(1,32,sigmoid_flag)  
+        netD=discriminator.Discriminator(1,32,sigmoid_flag)
+        #netD=discriminator.NLayerDiscriminator(1,32,sigmoid_flag)
         feat_model=models.vgg19(pretrained=True)
         if args.load == -1:
             netG.apply(weights_init)
@@ -145,7 +148,6 @@ def main(args):
                 ycenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
                 inp = gen_input(img,skg,xcenter,ycenter,crop_size)
 
-
                 img=img.cuda()
                 skg=skg.cuda()
                 seg=seg.cuda()
@@ -214,12 +216,12 @@ def main(args):
                 netD.zero_grad()
                 label_ = Variable(label)
                 outputD = netD(outputl)
+                
 
                 #D_G_z2 = outputD.data.mean()
 
                 label.resize_(outputD.data.size())
                 labelv = Variable(label.fill_(real_label))
-
                 err_gan = args.discriminator_weight*criterion_gan(outputD, labelv)
 
                 ####################################
@@ -396,7 +398,7 @@ def parse_arguments(argv):
     parser = argparse.ArgumentParser()
     
 ###############added options#######################################
-    parser.add_argument('-learning_rate', default=1e-5, type=float,
+    parser.add_argument('-learning_rate', default=1e-3, type=float,
                     help='Learning rate for the generator')
     parser.add_argument('-learning_rate_D',  default=1e-4,type=float,
                     help='Learning rate for the discriminator')    
@@ -404,10 +406,10 @@ def parse_arguments(argv):
     parser.add_argument('-gan', default='lsgan',type=str,choices=['dcgan', 'lsgan'],
                     help='dcgan|lsgan') #todo wgan/improved wgan    
     
-    parser.add_argument('-model', default='scribbler',type=str,choices=['scribbler', 'pix2pix'],
-                   help='scribbler|pix2pix')
+    parser.add_argument('-model', default='scribbler',type=str,choices=['scribbler', 'pix2pix', 'texturegan'],
+                   help='scribbler|pix2pix|texturegan')
     
-    parser.add_argument('-num_epoch',  default=1,type=int,
+    parser.add_argument('-num_epoch',  default=1000000,type=int,
                     help='texture|scribbler')   
     
     parser.add_argument('-visualize_every',  default=10,type=int,
@@ -416,38 +418,38 @@ def parse_arguments(argv):
     #all the weights ratio, might wanna make them sum to one
     parser.add_argument('-feature_weight', default=1,type=float,
                        help='weight ratio for feature loss')
-    parser.add_argument('-pixel_weight_l', default=100,type=float,
+    parser.add_argument('-pixel_weight_l', default=1,type=float,
                        help='weight ratio for pixel loss for l channel')
-    parser.add_argument('-pixel_weight_ab', default=500,type=float,
+    parser.add_argument('-pixel_weight_ab', default=1,type=float,
                    help='weight ratio for pixel loss for ab channel')
    
-    parser.add_argument('-discriminator_weight', default=1e1,type=float,
+    parser.add_argument('-discriminator_weight', default=1,type=float,
                    help='weight ratio for the discriminator loss')
-    parser.add_argument('-style_weight', default = 1, type=float, 
+    parser.add_argument('-style_weight', default = 10, type=float, 
                         help='weight ratio for the texture loss')
 
 
-    parser.add_argument('-gpu', default=1,type=int,
+    parser.add_argument('-gpu', default=3,type=int,
                    help='id of gpu to use') #TODO support cpu
 
     parser.add_argument('-display_port', default=8889,type=int,
                help='port for displaying on visdom (need to match with visdom currently open port)')
 
-    parser.add_argument('-data_path', default='/home/psangkloy3/training_handbags_pretrain/',type=str,
+    parser.add_argument('-data_path', default='../training_handbags_pretrain/',type=str,
                    help='path to the data directory, expect train_skg, train_img, val_skg, val_img')
 
-    parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir_first_test',type=str,
+    parser.add_argument('-save_dir', default='../save_models_3',type=str,
                    help='path to save the model')
     
-    parser.add_argument('-load_dir', default='/home/psangkloy3/texturegan/save_dir_first_test',type=str,
+    parser.add_argument('-load_dir', default='../save_models_3',type=str,
                    help='path to save the model')
     
     parser.add_argument('-save_every',  default=1000,type=int,
                     help='no. iteration to save the models')
     
-    parser.add_argument('-load', default=17100,type=int,
+    parser.add_argument('-load', default=-1,type=int,
                    help='load generator and discrminator from iteration n')
-    parser.add_argument('-load_D', default=17100,type=float,
+    parser.add_argument('-load_D', default=-1,type=int,
                    help='load discriminator from iteration n, priority over load')
     
     parser.add_argument('-image_size',default=128,type=int,
