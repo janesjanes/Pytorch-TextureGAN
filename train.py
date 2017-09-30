@@ -10,7 +10,7 @@ import torchvision.datasets as dataset
 import visdom
 import sys,argparse,os
 
-from models import scribbler, discriminator
+from models import scribbler, discriminator, texturegan, localDiscriminator
 import torch.optim as optim
 
 from skimage import color
@@ -69,13 +69,15 @@ def main(args):
         dataloader=DataLoader(dataset=dset, batch_size=args.batch_size, shuffle=True)
 
        # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
-
+        
         sigmoid_flag = 1
         if args.gan =='lsgan':
             sigmoid_flag = 0 
 
         if args.model=='scribbler':
             netG=scribbler.Scribbler(5,3,32)
+        elif args.model == 'texturegan':
+             netG = texturegan.TextureGAN(5, 3, 32)    
         elif args.model=='pix2pix':
             netG=define_G(5,3,32)
         else:
@@ -433,8 +435,8 @@ def parse_arguments(argv):
     parser.add_argument('-gan', default='lsgan',type=str,choices=['dcgan', 'lsgan'],
                     help='dcgan|lsgan') #todo wgan/improved wgan    
     
-    parser.add_argument('-model', default='scribbler',type=str,choices=['scribbler', 'pix2pix'],
-                   help='scribbler|pix2pix')
+    parser.add_argument('-model', default='scribbler',type=str,choices=['scribbler', 'pix2pix', 'texturegan'],
+                    help='scribbler|pix2pix|texturegan')
     
     parser.add_argument('-num_epoch',  default=1,type=int,
                     help='texture|scribbler')   
