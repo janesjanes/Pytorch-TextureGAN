@@ -29,6 +29,7 @@ from dataloader import imfol
 from utils.visualize import vis_patch, vis_image
         
 from torch.utils.data import DataLoader
+from torch.utils.data.sampler import SequentialSampler
 from dataloader.imfol import ImageFolder, make_dataset
 from utils import transforms as custom_trans
 import torchvision.transforms as tforms
@@ -56,11 +57,17 @@ def main(args):
         Loss_gs_graph = []
         Loss_d_graph=[]
 
-        ts=custom_trans.Compose([custom_trans.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),custom_trans.RandomHorizontalFlip() ,custom_trans.toLAB(), custom_trans.toTensor()])
+        transform = custom_trans.Compose([custom_trans.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max), custom_trans.RandomHorizontalFlip(), custom_trans.toLAB(), custom_trans.toTensor()])
         rgbify = custom_trans.toRGB()
-        dset = ImageFolder(args.data_path,ts)
-        dataloader=DataLoader(dataset=dset, batch_size=args.batch_size, shuffle=True)
-
+        trainDset = ImageFolder('train', args.data_path, transform)
+        trainLoader = DataLoader(dataset=trainDset, batch_size=args.batch_size, shuffle=True)
+        
+        valDset = ImageFolder('val', args.data_path, transform)
+        indices = torch.randperm(len(valDset))
+        val_display_size = 10
+        val_display_sampler = SequentialSampler(indices[:val_display_size])
+        valLoader = DataLoader(dataset=valDset, sampler=val_display_sampler)
+        
        # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
 
         sigmoid_flag = 1
@@ -122,11 +129,11 @@ def main(args):
         criterion_pixel_ab.cuda()
         criterion_feat.cuda()
         input_stack, target_img, segment, label = input_stack.cuda(), target_img.cuda(),segment.cuda(), label.cuda()
-
+        
         Extract_content = FeatureExtractor(feat_model.features, ['11'])
         Extract_style = FeatureExtractor(feat_model.features, ['0','5','10','19','28'])
         for epoch in range(args.num_epoch):
-            for i, data in enumerate(dataloader, 0):
+            for i, data in enumerate(trainLoader, 0):
 
 
                 #Detach is apparently just creating new Variable with cut off reference to previous node, so shouldn't effect the original 
@@ -280,31 +287,61 @@ def main(args):
                 if(i%args.save_every==0):
                     save_network(netG,'G',i,args.gpu,args.save_dir)
                     save_network(netD,'D',i,args.gpu,args.save_dir)
-
-
-                #TODO test on test set
+                                
                 if(i%args.visualize_every==0):
+                    imgs = []
+                    
+                    for i, data in enumerate(valLoader, 0):
+                            img, skg, seg = data #LAB with negeative value
 
-                    out_img=vis_image(utforms.denormalize_lab(outputG.data.double().cpu()))
-                    out_img=(out_img*255).astype('uint8')
-                    out_img=np.transpose(out_img,(2,0,1))
+                            img=utforms.normalize_lab(img)
+                            skg=utforms.normalize_lab(skg)
 
-                    inp_img=vis_patch(utforms.denormalize_lab(img.cpu()),utforms.denormalize_lab(skg.cpu()),xcenter,ycenter,crop_size)
-                    inp_img=(inp_img*255).astype('uint8')
-                    inp_img=np.transpose(inp_img,(2,0,1))
+                            crop_size = int( rand_between(args.crop_size_min, args.crop_size_max))
+                            xcenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
+                            ycenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
+                            inp = gen_input(img,skg,xcenter,ycenter,crop_size)
 
-                    tar_img=vis_image(utforms.denormalize_lab(img.cpu()))
-                    tar_img=(tar_img*255).astype('uint8')
-                    tar_img=np.transpose(tar_img,(2,0,1))
+                            img=img.cuda()
+                            skg=skg.cuda()
+                            seg=seg.cuda()
 
-                    segment_img=vis_image((seg.cpu()))
-                    segment_img=(segment_img*255).astype('uint8')
-                    segment_img=np.transpose(segment_img,(2,0,1))
+                            inp = inp.cuda()
 
-                    vis.image(out_img,win='output',opts=dict(title='output'))
-                    vis.image(inp_img,win='input',opts=dict(title='input'))  
-                    vis.image(tar_img,win='target',opts=dict(title='target'))
-                    vis.image(segment_img,win='segment',opts=dict(title='segment'))
+                            input_stack.resize_as_(inp.float()).copy_(inp)
+                            target_img.resize_as_(img.float()).copy_(img)
+                            segment.resize_as_(seg.float()).copy_(seg)
+
+                            inputv = Variable(input_stack)
+                            targetv = Variable(target_img)
+
+                            outputG = netG(inputv)
+
+                            segment_img=vis_image((seg.cpu()))
+                            segment_img=(segment_img*255).astype('uint8')
+                            segment_img=np.transpose(segment_img,(2,0,1))
+                            imgs.append(segment_img)
+                            
+                            inp_img= vis_patch(utforms.denormalize_lab(img.cpu()), utforms.denormalize_lab(skg.cpu()), xcenter, ycenter, crop_size)
+                            inp_img=(inp_img*255).astype('uint8')
+                            inp_img=np.transpose(inp_img,(2,0,1))
+                            imgs.append(inp_img)
+                            
+                            out_img= vis_image(utforms.denormalize_lab(outputG.data.double().cpu()))
+                            out_img=(out_img*255).astype('uint8')
+                            out_img=np.transpose(out_img,(2,0,1))   
+                            imgs.append(out_img)
+
+                            tar_img=vis_image(utforms.denormalize_lab(img.cpu()))
+                            tar_img=(tar_img*255).astype('uint8')
+                            tar_img=np.transpose(tar_img,(2,0,1))
+                            imgs.append(tar_img)
+                       
+                    vis.images(imgs,win='output',opts=dict(title='Output images'))
+                    #vis.image(out_img,win='output',opts=dict(title='output'))
+                    #vis.image(inp_img,win='input',opts=dict(title='input'))  
+                    #vis.image(tar_img,win='target',opts=dict(title='target'))
+                    #vis.image(segment_img,win='segment',opts=dict(title='segment'))
                     vis.line(np.array(Loss_gs_graph),win='gs',opts=dict(title='G-Style Loss'))
                     vis.line(np.array(Loss_g_graph),win='g',opts=dict(title='G Total Loss'))
                     vis.line(np.array(Loss_gd_graph),win='gd',opts=dict(title='G-Discriminator Loss'))
@@ -463,7 +500,8 @@ def parse_arguments(argv):
     parser.add_argument('-crop_size_max',default=40,type=int,
                     help='max texture patch size')  
     
-    parser.add_argument('-batch_size', default=8) #fixed batch size 1    
+    parser.add_argument('-batch_size', default=8) #fixed batch size 1
+    parser.add_argument('-local_texture_size', default=-1)
 ############################################################################
 ############################################################################
 ############TODO: TO ADD#################################################################
