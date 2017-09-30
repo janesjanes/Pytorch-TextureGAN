@@ -29,18 +29,37 @@ class toLAB(object):
     def __call__(self, images):
         lab_images = [color.rgb2lab(np.array(image)/255.0) for image in images]
         return lab_images
+
+class toRGB_(object):
+    """
+    Transform to convert loaded into LAB space. 
+    """
+    
+    def __init__(self):
+        self.space = 'LAB'
+        
+    def __call__(self, images):
+        images = np.transpose(images.numpy(), (1, 2, 0))
+        rgb_images = [(np.array(image)/255.0) for image in images]
+        return rgb_images
     
 class toRGB(object):
     """
     Transform to convert loaded into RGB color space. 
     """
     
-    def __init__(self):
-        self.space = 'RGB'
+    def __init__(self,space ='LAB'):
+        self.space = space
         
-    def __call__(self, img):
-        npimg = np.transpose(img.numpy(), (1, 2, 0))
-        rgb_img = color.lab2rgb(np.array(npimg))
+    def __call__(self, images):
+        if self.space =='LAB':
+            #npimg = np.transpose(np.array(images), (1, 2, 0))
+            #print image
+            rgb_img = [np.transpose(color.lab2rgb(np.transpose(image.cpu().numpy(),(1,2,0))),(2,0,1)) for image in images]
+        elif self.space =='RGB':
+            #print np.shape(images)
+            #images = np.transpose(images.numpy(), (1, 2, 0))
+            rgb_img = [((np.array(image)/255.0)) for image in images]            
         return rgb_img
     
 class toTensor(object):
@@ -76,6 +95,28 @@ def normalize_lab(lab_img):
     
     return (lab_img.double() - mean.double())/stds.double()
 
+def normalize_rgb(rgb_img):
+    """
+    Normalizes the LAB image to lie in range 0-1
+    
+    Args:
+    lab_img : torch.Tensor img in lab space
+    
+    Returns:
+    lab_img : torch.Tensor Normalized lab_img 
+    """
+    mean = torch.zeros(rgb_img.size())
+    stds = torch.zeros(rgb_img.size())
+    
+    mean[:,0,:,:] = 0.485
+    mean[:,1,:,:] = 0.456
+    mean[:,2,:,:] = 0.406
+    
+    stds[:,0,:,:] = 0.229
+    stds[:,1,:,:] = 0.224
+    stds[:,2,:,:] = 0.225
+    
+    return (rgb_img.double() - mean.double())/stds.double()
    
     
 def denormalize_lab(lab_img):
@@ -103,7 +144,30 @@ def denormalize_lab(lab_img):
     
     return lab_img.double() *stds.double() + mean.double()
 
-
+def denormalize_rgb(rgb_img):
+    """
+    Normalizes the LAB image to lie in range 0-1
+    
+    Args:
+    lab_img : torch.Tensor img in lab space
+    
+    Returns:
+    lab_img : torch.Tensor Normalized lab_img 
+    """
+    mean = torch.zeros(rgb_img.size())
+    stds = torch.zeros(rgb_img.size())
+    
+    mean[:,0,:,:] = 0.485
+    mean[:,1,:,:] = 0.456
+    mean[:,2,:,:] = 0.406
+    
+    stds[:,0,:,:] = 0.229
+    stds[:,1,:,:] = 0.224
+    stds[:,2,:,:] = 0.225
+    
+    
+    
+    return (rgb_img.double() *stds.double() + mean.double())
 ###########################################################################
 #multiple images transformation -- based on transform from torchvision
 
