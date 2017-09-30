@@ -24,11 +24,11 @@ def find_classes(dir):
 
 def make_dataset(dir, opt):
     # opt: 'train' or 'val'
-    img = glob.glob(dir + opt + '_img/wendy/*.jpg')
+    img = glob.glob(dir + opt + '_img/*/*.jpg')
     img = sorted(img)
-    skg = glob.glob(dir + opt + '_skg/wendy/*.jpg')
+    skg = glob.glob(dir + opt + '_skg/*/*.jpg')
     skg = sorted(skg)
-    seg = glob.glob(dir + opt + '_seg/wendy/*.jpg')
+    seg = glob.glob(dir + opt + '_seg/*/*.jpg')
     seg = sorted(seg)
     
     return zip(img, skg, seg)
