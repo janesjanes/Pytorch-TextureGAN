@@ -22,16 +22,16 @@ def find_classes(dir):
     return classes, class_to_idx
 
 
-#TODO add val folder
-def make_dataset(dir):
-    train_img=glob.glob(dir+'train_img/wendy/*.jpg')
-    train_img=sorted(train_img)
-    train_skg=glob.glob(dir+'train_skg/wendy/*.jpg')
-    train_skg=sorted(train_skg)
-    train_seg=glob.glob(dir+'train_seg/wendy/*.jpg')
-    train_seg=sorted(train_seg)
+def make_dataset(dir, opt):
+    # opt: 'train' or 'val'
+    img = glob.glob(dir + opt + '_img/wendy/*.jpg')
+    img = sorted(img)
+    skg = glob.glob(dir + opt + '_skg/wendy/*.jpg')
+    skg = sorted(skg)
+    seg = glob.glob(dir + opt + '_seg/wendy/*.jpg')
+    seg = sorted(seg)
     
-    return zip(train_img,train_skg,train_seg)
+    return zip(img, skg, seg)
 
 
 def pil_loader(path):
@@ -57,14 +57,11 @@ def default_loader(path):
 
 class ImageFolder(data.Dataset):
 
-    def __init__(self, root, transform=None, target_transform=None,
+    def __init__(self, opt, root, transform=None, target_transform=None,
                  loader=default_loader):
      
-        imgs = make_dataset(root)
-        
-
         self.root = root
-        self.imgs = imgs
+        self.imgs = make_dataset(root, opt)
         self.transform = transform
         self.target_transform = target_transform
         self.loader = loader

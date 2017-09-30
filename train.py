@@ -29,6 +29,10 @@ from dataloader import imfol
 from utils.visualize import vis_patch, vis_image
         
 from torch.utils.data import DataLoader
+<<<<<<< HEAD
+=======
+from torch.utils.data.sampler import SequentialSampler
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
 from dataloader.imfol import ImageFolder, make_dataset
 from utils import transforms as custom_trans
 import torchvision.transforms as tforms
@@ -38,11 +42,20 @@ from networks import define_G, weights_init
 from models import scribbler 
 import visdom
 
+<<<<<<< HEAD
 #TODO: visdom show the whole batch and on test set
 #TODO: index to name mapping for vgg layers
 #TODO: rgb/lab option
 def main(args):
     
+=======
+def main(args):
+
+#TODO: visdom show the whole batch and on test set
+#TODO: index to name mapping for vgg layers
+#TODO: rgb/lab option
+
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
     with torch.cuda.device(args.gpu):
 
         vis=visdom.Visdom(port=args.display_port)
@@ -54,6 +67,7 @@ def main(args):
         Loss_gpab_graph = []    
         Loss_gs_graph = []
         Loss_d_graph=[]
+<<<<<<< HEAD
         #for rgb the change is to feed 3 channels to D instead of just 1. and feed 3 channels to vgg. 
         #can leave pixel separate between r and gb for now. assume user use the same weights
         if args.color_space == 'lab':
@@ -70,23 +84,49 @@ def main(args):
 
        # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
         
+=======
+
+        transform = custom_trans.Compose([custom_trans.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max), custom_trans.RandomHorizontalFlip(), custom_trans.toLAB(), custom_trans.toTensor()])
+        rgbify = custom_trans.toRGB()
+        trainDset = ImageFolder('train', args.data_path, transform)
+        trainLoader = DataLoader(dataset=trainDset, batch_size=args.batch_size, shuffle=True)
+        
+        valDset = ImageFolder('val', args.data_path, transform)
+        indices = torch.randperm(len(valDset))
+        val_display_size = 10
+        val_display_sampler = SequentialSampler(indices[:val_display_size])
+        valLoader = DataLoader(dataset=valDset, sampler=val_display_sampler)
+        
+       # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
+
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
         sigmoid_flag = 1
         if args.gan =='lsgan':
             sigmoid_flag = 0 
 
         if args.model=='scribbler':
             netG=scribbler.Scribbler(5,3,32)
+<<<<<<< HEAD
         elif args.model == 'texturegan':
              netG = texturegan.TextureGAN(5, 3, 32)    
+=======
+        if args.model == 'texturegan':
+            netG = texturegan.TextureGAN(5, 3, 32)
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
         elif args.model=='pix2pix':
             netG=define_G(5,3,32)
         else:
             print(args.model+ ' not support. Using pix2pix model')
             netG=define_G(5,3,32)
+<<<<<<< HEAD
         if args.color_space =='lab':
             netD=discriminator.Discriminator(1,32,sigmoid_flag) 
         elif args.color_space =='rgb':
             netD=discriminator.Discriminator(3,32,sigmoid_flag) 
+=======
+        netD=discriminator.Discriminator(1,32,sigmoid_flag)
+        #netD=discriminator.NLayerDiscriminator(1,32,sigmoid_flag)
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
         feat_model=models.vgg19(pretrained=True)
         if args.load == -1:
             netG.apply(weights_init)
@@ -131,11 +171,19 @@ def main(args):
         criterion_pixel_ab.cuda()
         criterion_feat.cuda()
         input_stack, target_img, segment, label = input_stack.cuda(), target_img.cuda(),segment.cuda(), label.cuda()
+<<<<<<< HEAD
 
         Extract_content = FeatureExtractor(feat_model.features, ['11'])
         Extract_style = FeatureExtractor(feat_model.features, ['0','5','10','19','28'])
         for epoch in range(args.num_epoch):
             for i, data in enumerate(dataloader, 0):
+=======
+        
+        Extract_content = FeatureExtractor(feat_model.features, ['11'])
+        Extract_style = FeatureExtractor(feat_model.features, ['0','5','10','19','28'])
+        for epoch in range(args.num_epoch):
+            for i, data in enumerate(trainLoader, 0):
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
 
 
                 #Detach is apparently just creating new Variable with cut off reference to previous node, so shouldn't effect the original 
@@ -146,6 +194,7 @@ def main(args):
                 netG.zero_grad()
 
                 img, skg,seg = data #LAB with negeative value
+<<<<<<< HEAD
                 #output img/skg/seg rgb between 0-1
                 #output img/skg/seg lab between 0-100, -128-128 
                 if args.color_space =='lab':
@@ -155,6 +204,11 @@ def main(args):
                     img=utforms.normalize_rgb(img)
                     skg=utforms.normalize_rgb(skg)  
 
+=======
+
+                img=utforms.normalize_lab(img)
+                skg=utforms.normalize_lab(skg)
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                 #skg = torch.round(skg)
                # break
                 #randomize patch position/size
@@ -163,7 +217,10 @@ def main(args):
                 ycenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
                 inp = gen_input(img,skg,xcenter,ycenter,crop_size)
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                 img=img.cuda()
                 skg=skg.cuda()
                 seg=seg.cuda()
@@ -186,12 +243,17 @@ def main(args):
                 targetab = torch.cat((targeta,targetb),1)
 
                 #TODO renormalize with the right mean (but shouldn't matter much, it's around 0.5 anyway)
+<<<<<<< HEAD
                 if args.color_space =='lab':
                     outputlll= (torch.cat((outputl,outputl,outputl),1))
                     targetlll = (torch.cat((targetl,targetl,targetl),1))
                 elif args.color_space =='rgb':
                     outputlll= outputG#(torch.cat((outputl,outputl,outputl),1))
                     targetlll = targetv#(torch.cat((targetl,targetl,targetl),1))                
+=======
+                outputlll= (torch.cat((outputl,outputl,outputl),1))
+                targetlll = (torch.cat((targetl,targetl,targetl),1))
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
 
                 ##################Pixel L Loss############################
                 err_pixel_l = args.pixel_weight_l*criterion_pixel_l(outputl,targetl)
@@ -208,8 +270,11 @@ def main(args):
 
 
                 ##################style Loss############################
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                 if args.local_texture_size == -1: #global
                     output_feat_ = Extract_style(outputlll)
                     target_feat_ = Extract_style(targetlll)
@@ -223,9 +288,12 @@ def main(args):
                     output_feat_ = Extract_style(texture_patch)
                     target_feat_ = Extract_style(gt_texture_patch)
 
+<<<<<<< HEAD
 
 
 
+=======
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                 gram = GramMatrix()
 
                 err_style = 0
@@ -240,15 +308,24 @@ def main(args):
                 ##################D Loss############################
                 netD.zero_grad()
                 label_ = Variable(label)
+<<<<<<< HEAD
                 if args.color_space =='lab':
                     outputD = netD(outputl)
                 elif args.color_space =='rgb':
                     outputD = netD(outputG)
+=======
+                outputD = netD(outputl)
+                
+
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                 #D_G_z2 = outputD.data.mean()
 
                 label.resize_(outputD.data.size())
                 labelv = Variable(label.fill_(real_label))
+<<<<<<< HEAD
 
+=======
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                 err_gan = args.discriminator_weight*criterion_gan(outputD, labelv)
 
                 ####################################
@@ -275,10 +352,15 @@ def main(args):
                 netD.zero_grad()
 
                 labelv = Variable(label)
+<<<<<<< HEAD
                 if args.color_space =='lab':
                     outputD = netD(targetl)
                 elif args.color_space =='rgb':
                     outputD = netD(targetv)
+=======
+
+                outputD = netD(targetl)
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
 
                 label.resize_(outputD.data.size())
                 labelv = Variable(label.fill_(real_label))
@@ -294,10 +376,14 @@ def main(args):
 
                 ##################################
                 #TODO add threshold to stop updating D
+<<<<<<< HEAD
                 if args.color_space =='lab':
                     outputD = netD(outputl.detach())
                 elif args.color_space =='rgb':
                     outputD = netD(outputG.detach())
+=======
+                outputD = netD(outputl.detach())
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                 label.resize_(outputD.data.size())
                 labelv = Variable(label.fill_(fake_label))
 
@@ -312,6 +398,7 @@ def main(args):
                 if(i%args.save_every==0):
                     save_network(netG,'G',i,args.gpu,args.save_dir)
                     save_network(netD,'D',i,args.gpu,args.save_dir)
+<<<<<<< HEAD
 
 
                 #TODO test on test set
@@ -342,6 +429,63 @@ def main(args):
                     vis.image(inp_img,win='input',opts=dict(title='input'))  
                     vis.image(tar_img,win='target',opts=dict(title='target'))
                     vis.image(segment_img,win='segment',opts=dict(title='segment'))
+=======
+                                
+                if(i%args.visualize_every==0):
+                    imgs = []
+                    
+                    for i, data in enumerate(valLoader, 0):
+                            img, skg, seg = data #LAB with negeative value
+
+                            img=utforms.normalize_lab(img)
+                            skg=utforms.normalize_lab(skg)
+
+                            crop_size = int( rand_between(args.crop_size_min, args.crop_size_max))
+                            xcenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
+                            ycenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
+                            inp = gen_input(img,skg,xcenter,ycenter,crop_size)
+
+                            img=img.cuda()
+                            skg=skg.cuda()
+                            seg=seg.cuda()
+
+                            inp = inp.cuda()
+
+                            input_stack.resize_as_(inp.float()).copy_(inp)
+                            target_img.resize_as_(img.float()).copy_(img)
+                            segment.resize_as_(seg.float()).copy_(seg)
+
+                            inputv = Variable(input_stack)
+                            targetv = Variable(target_img)
+
+                            outputG = netG(inputv)
+
+                            segment_img=vis_image((seg.cpu()))
+                            segment_img=(segment_img*255).astype('uint8')
+                            segment_img=np.transpose(segment_img,(2,0,1))
+                            imgs.append(segment_img)
+                            
+                            inp_img= vis_patch(utforms.denormalize_lab(img.cpu()), utforms.denormalize_lab(skg.cpu()), xcenter, ycenter, crop_size)
+                            inp_img=(inp_img*255).astype('uint8')
+                            inp_img=np.transpose(inp_img,(2,0,1))
+                            imgs.append(inp_img)
+                            
+                            out_img= vis_image(utforms.denormalize_lab(outputG.data.double().cpu()))
+                            out_img=(out_img*255).astype('uint8')
+                            out_img=np.transpose(out_img,(2,0,1))   
+                            imgs.append(out_img)
+
+                            tar_img=vis_image(utforms.denormalize_lab(img.cpu()))
+                            tar_img=(tar_img*255).astype('uint8')
+                            tar_img=np.transpose(tar_img,(2,0,1))
+                            imgs.append(tar_img)
+                       
+                    vis.images(imgs,win='output',opts=dict(title='Output images'))
+                    #vis.image(out_img,win='output',opts=dict(title='output'))
+                    #vis.image(inp_img,win='input',opts=dict(title='input'))  
+                    #vis.image(tar_img,win='target',opts=dict(title='target'))
+                    #vis.image(segment_img,win='segment',opts=dict(title='segment'))
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                     vis.line(np.array(Loss_gs_graph),win='gs',opts=dict(title='G-Style Loss'))
                     vis.line(np.array(Loss_g_graph),win='g',opts=dict(title='G Total Loss'))
                     vis.line(np.array(Loss_gd_graph),win='gd',opts=dict(title='G-Discriminator Loss'))
@@ -350,10 +494,14 @@ def main(args):
                     vis.line(np.array(Loss_gpab_graph),win='gpab',opts=dict(title='G-Pixel Loss-AB'))
                     vis.line(np.array(Loss_d_graph),win='d',opts=dict(title='D Loss'))
 
+<<<<<<< HEAD
                 
 
 #TODO, need to organize these func:
 #all in one place funcs, need to organize these:
+=======
+#TODO, need to organize these func:
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
 def rand_between(a,b):
     return a + torch.round(torch.rand(1)*(b-a))[0]
 
@@ -379,6 +527,7 @@ def gen_input(img,skg,xcenter=64,ycenter=64,size=40):
 
     return torch.cat((input_sketch.float(),input_texture.float(),input_mask),1)
      
+<<<<<<< HEAD
 class GramMatrix(nn.Module):
 
     def forward(self, input):
@@ -394,6 +543,31 @@ class GramMatrix(nn.Module):
         # by dividing by the number of element in each feature maps.
         return G.div( b * c * d)
     
+=======
+    
+#TODO: move to utils
+def clamp_image(img):
+    img[:,0,:,:].clamp_(0,1)
+    img[:,1,:,:].clamp_(-1.5,1.5)
+    img[:,2,:,:].clamp_(-1.5,1.5)
+    return img 
+
+#TODO: move to model function
+def save_network(model, network_label, epoch_label, gpu_id, save_dir):
+    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path = os.path.join(save_dir, save_filename)
+    torch.save(model.cpu().state_dict(), save_path)
+    model.cuda(device_id=gpu_id)
+#TODO: move to model function    
+def load_network(model, network_label, epoch_label,save_dir):
+    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
+    save_path = os.path.join(save_dir, save_filename)
+    model.load_state_dict(torch.load(save_path))
+    
+#TODO move to utils
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
 class FeatureExtractor(nn.Module):
     # Extract features from intermediate layers of a network
 
@@ -410,6 +584,7 @@ class FeatureExtractor(nn.Module):
                 outputs += [x]
         return outputs + [x]
     
+<<<<<<< HEAD
 def save_network(model, network_label, epoch_label, gpu_id, save_dir):
     save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
     if not os.path.exists(save_dir):
@@ -422,12 +597,33 @@ def load_network(model, network_label, epoch_label,save_dir):
     save_path = os.path.join(save_dir, save_filename)
     model.load_state_dict(torch.load(save_path))
     
+=======
+#TODO move to separate loss file
+class GramMatrix(nn.Module):
+
+    def forward(self, input):
+        a, b, c, d = input.size()  # a=batch size(=1)
+        # b=number of feature maps
+        # (c,d)=dimensions of a f. map (N=c*d)
+
+        features = input.view(a * b, c * d)  # resise F_XL into \hat F_XL
+
+        G = torch.mm(features, features.t())  # compute the gram product
+
+        # normalize the values of the gram matrix
+        # by dividing by the number of element in each feature maps.
+        return G.div(a * b * c * d)
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
     
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
     
 ###############added options#######################################
+<<<<<<< HEAD
     parser.add_argument('-learning_rate', default=1e-5, type=float,
+=======
+    parser.add_argument('-learning_rate', default=1e-3, type=float,
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                     help='Learning rate for the generator')
     parser.add_argument('-learning_rate_D',  default=1e-4,type=float,
                     help='Learning rate for the discriminator')    
@@ -436,15 +632,22 @@ def parse_arguments(argv):
                     help='dcgan|lsgan') #todo wgan/improved wgan    
     
     parser.add_argument('-model', default='scribbler',type=str,choices=['scribbler', 'pix2pix', 'texturegan'],
+<<<<<<< HEAD
                     help='scribbler|pix2pix|texturegan')
     
     parser.add_argument('-num_epoch',  default=1,type=int,
+=======
+                   help='scribbler|pix2pix|texturegan')
+    
+    parser.add_argument('-num_epoch',  default=1000000,type=int,
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                     help='texture|scribbler')   
     
     parser.add_argument('-visualize_every',  default=10,type=int,
                     help='no. iteration to visualize the results')      
 
     #all the weights ratio, might wanna make them sum to one
+<<<<<<< HEAD
     parser.add_argument('-feature_weight', default=100,type=float,
                        help='weight ratio for feature loss')
     parser.add_argument('-pixel_weight_l', default=400,type=float,
@@ -473,6 +676,34 @@ def parse_arguments(argv):
                    help='path to save the model')
     
     parser.add_argument('-load_dir', default='/home/psangkloy3/texturegan/save_dir_first_test',type=str,
+=======
+    parser.add_argument('-feature_weight', default=1,type=float,
+                       help='weight ratio for feature loss')
+    parser.add_argument('-pixel_weight_l', default=1,type=float,
+                       help='weight ratio for pixel loss for l channel')
+    parser.add_argument('-pixel_weight_ab', default=1,type=float,
+                   help='weight ratio for pixel loss for ab channel')
+   
+    parser.add_argument('-discriminator_weight', default=1,type=float,
+                   help='weight ratio for the discriminator loss')
+    parser.add_argument('-style_weight', default = 10, type=float, 
+                        help='weight ratio for the texture loss')
+
+
+    parser.add_argument('-gpu', default=3,type=int,
+                   help='id of gpu to use') #TODO support cpu
+
+    parser.add_argument('-display_port', default=8889,type=int,
+               help='port for displaying on visdom (need to match with visdom currently open port)')
+
+    parser.add_argument('-data_path', default='../training_handbags_pretrain/',type=str,
+                   help='path to the data directory, expect train_skg, train_img, val_skg, val_img')
+
+    parser.add_argument('-save_dir', default='../save_models_3',type=str,
+                   help='path to save the model')
+    
+    parser.add_argument('-load_dir', default='../save_models_3',type=str,
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                    help='path to save the model')
     
     parser.add_argument('-save_every',  default=1000,type=int,
@@ -480,7 +711,11 @@ def parse_arguments(argv):
     
     parser.add_argument('-load', default=-1,type=int,
                    help='load generator and discrminator from iteration n')
+<<<<<<< HEAD
     parser.add_argument('-load_D', default=-1,type=float,
+=======
+    parser.add_argument('-load_D', default=-1,type=int,
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
                    help='load discriminator from iteration n, priority over load')
     
     parser.add_argument('-image_size',default=128,type=int,
@@ -494,6 +729,7 @@ def parse_arguments(argv):
     parser.add_argument('-crop_size_max',default=40,type=int,
                     help='max texture patch size')  
     
+<<<<<<< HEAD
     parser.add_argument('-batch_size', default=8)     
     
     parser.add_argument('-local_texture_size', default=50,type=int,
@@ -501,6 +737,10 @@ def parse_arguments(argv):
     parser.add_argument('-color_space',  default='rgb',type=str,choices=['lab','rgb'],
                 help='lab|rgb') 
     
+=======
+    parser.add_argument('-batch_size', default=8) #fixed batch size 1
+    parser.add_argument('-local_texture_size', default=-1)
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
 ############################################################################
 ############################################################################
 ############TODO: TO ADD#################################################################
@@ -547,4 +787,8 @@ def parse_arguments(argv):
 
 if __name__ == '__main__':
     main(parse_arguments(sys.argv[1:]))
+<<<<<<< HEAD
     
+=======
+    
+>>>>>>> c92b25b3ffdc01aed5408ecce3783198fa2316a3
