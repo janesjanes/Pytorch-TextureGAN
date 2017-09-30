@@ -12,13 +12,14 @@ def vis_patch(img,skg,xcenter=64,ycenter=64,size=40,color='lab'):
         ToRGB = transforms.toRGB('RGB')
         img = img.cpu().numpy()
         skg = skg.cpu().numpy()
-    img_np = ToRGB(img)[0]
-    skg_np = ToRGB(skg)[0]
+        
+    img_np = ToRGB(img)
+    skg_np = ToRGB(skg)
     
     vis_skg = np.copy(skg_np)
     vis_img = np.copy(img_np)
     #print np.shape(vis_skg)
-    vis_skg[:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2] = vis_img[:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2]
+    vis_skg[:,:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2] = vis_img[:,:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2]
     
     return (vis_skg)
     
@@ -30,7 +31,7 @@ def vis_image(img,color='lab'):
     elif color =='rgb':
         ToRGB = transforms.toRGB('RGB')
     #print np.shape(img)   
-    img_np = ToRGB(img)[0]
+    img_np = ToRGB(img)
    
     
     return (img_np)
