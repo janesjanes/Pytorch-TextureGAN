@@ -41,6 +41,7 @@ import visdom
 
 #TODO: finetuning DTD
 #TODO: unmatch the sketch/texture input patch location for DTD
+
 def main(args):
     
     with torch.cuda.device(args.gpu):
@@ -157,14 +158,16 @@ def main(args):
                 if args.color_space =='lab':
                     img=utforms.normalize_lab(img)
                     skg=utforms.normalize_lab(skg)
+                    txt=utforms.normalize_lab(txt)
                    #seg = utforms.normalize_lab(seg)
                 elif args.color_space =='rgb':
                     img=utforms.normalize_rgb(img)
                     skg=utforms.normalize_rgb(skg)  
+                    txt=utforms.normalize_rgb(txt)
                     #seg=utforms.normalize_rgb(seg)
                 if not args.use_segmentation_patch:
                     seg.fill_(1)
-                inp,_ = gen_input_rand(img,skg,seg[:,0,:,:],args.crop_size_min,args.crop_size_max)
+                inp,_ = gen_input_rand(img,skg,seg[:,0,:,:],args.patch_size_min,args.patch_size_max,args.num_input_texture_patch)
 
 
                 img=img.cuda()
@@ -354,7 +357,7 @@ def main(args):
                         if not args.use_segmentation_patch:
                             seg.fill_(1)
 
-                        inp,texture_loc = gen_input_rand(img,skg,seg[:,0,:,:],args.crop_size_min,args.crop_size_max)
+                        inp,texture_loc = gen_input_rand(img,skg,seg[:,0,:,:],args.patch_size_min,args.patch_size_max,args.num_input_texture_patch)
 
                         img=img.cuda()
                         skg=skg.cuda()
@@ -433,11 +436,12 @@ def main(args):
 
 
 
+
 #all in one place funcs, need to organize these:
 def rand_between(a,b):
     return a + torch.round(torch.rand(1)*(b-a))[0]
 
-def gen_input(img,skg,xcenter=64,ycenter=64,size=40):
+def gen_input(img,skg,ini_texture,ini_mask,xcenter=64,ycenter=64,size=40):
     #generate input skg with random patch from img
     #input img,skg [bsx3xwxh], xcenter,ycenter, size 
     #output bsx5xwxh
@@ -450,20 +454,18 @@ def gen_input(img,skg,xcenter=64,ycenter=64,size=40):
     yend = min(ycenter + size/2,h)
 
 
-    input_texture = torch.ones(img.size())*(1)
+    input_texture = ini_texture#torch.ones(img.size())*(1)
     input_sketch = skg[0:1,:,:] #L channel from skg
-    input_mask = torch.ones(input_sketch.size())*(-1)
+    input_mask =ini_mask# torch.ones(input_sketch.size())*(-1)
     
-    #print xstart, xend, ystart, yend
 
     input_mask[:,xstart:xend,ystart:yend] = 1
+
     input_texture[:,xstart:xend,ystart:yend] = img[:,xstart:xend,ystart:yend].clone()
-    #print input_mask.size()
-    #print input_texture.size()
-    #print input_mask.size()
+
     return torch.cat((input_sketch.cpu().float(),input_texture.float(),input_mask),0)
-    #return input_mask,input_texture,input_sketch
-def gen_input_rand(img,skg,seg,size_min=40,size_max=60):
+
+def gen_input_rand(img,skg,seg,size_min=40,size_max=60,num_patch=1):
     #generate input skg with random patch from img
     #input img,skg [bsx3xwxh], xcenter,ycenter, size 
     #output bsx5xwxh
@@ -471,34 +473,41 @@ def gen_input_rand(img,skg,seg,size_min=40,size_max=60):
     bs,c,w,h = img.size()
     results = torch.Tensor(bs,5,w,h)
     text_info = [] 
-    crop_size = int( rand_between(size_min, size_max))
-    xcenter = int( rand_between(crop_size/2,w-crop_size/2))
-    ycenter = int( rand_between(crop_size/2,h-crop_size/2))   
-    text_info.append([xcenter,ycenter,crop_size])    
+
+    #text_info.append([xcenter,ycenter,crop_size])    
     seg = seg/torch.max(seg)
     couter = 0
     for i in range(bs):
         counter=0
-        
-        xstart = max(xcenter-crop_size/2,0)
-        ystart = max(ycenter-crop_size/2,0)
-        xend = min(xcenter + crop_size/2,w)
-        yend = min(ycenter + crop_size/2,h)
-        patch = seg[i,xstart:xend,ystart:yend]
-        sizem = torch.ones(patch.size())
-        while torch.sum(patch) >= 0.7*torch.sum(sizem):
-            if counter > MAX_COUNT:
-                break
+        ini_texture = torch.ones(img[0].size())*(1)
+        ini_mask =  torch.ones((1,w,h))*(-1)
+        temp_info = []
+        for j in range(num_patch):
             crop_size = int( rand_between(size_min, size_max))
             xcenter = int( rand_between(crop_size/2,w-crop_size/2))
             ycenter = int( rand_between(crop_size/2,h-crop_size/2))   
+            xstart = max(xcenter-crop_size/2,0)
+            ystart = max(ycenter-crop_size/2,0)
+            xend = min(xcenter + crop_size/2,w)
+            yend = min(ycenter + crop_size/2,h)
+            patch = seg[i,xstart:xend,ystart:yend]
+            sizem = torch.ones(patch.size())            
+            while torch.sum(patch) >= 0.7*torch.sum(sizem):
+                if counter > MAX_COUNT:
+                    break
+                crop_size = int( rand_between(size_min, size_max))
+                xcenter = int( rand_between(crop_size/2,w-crop_size/2))
+                ycenter = int( rand_between(crop_size/2,h-crop_size/2))   
+
+                counter= counter+1
+                
+            temp_info.append([xcenter,ycenter,crop_size])
+            res = gen_input(img[i],skg[i],ini_texture,ini_mask,xcenter,ycenter,crop_size)
+          
+            ini_texture = res[1:4,:,:]
             
-            counter= counter+1
-            #print xcenter, ycenter
-            #print i, xcenter, ycenter
-        #print torch.sum(patch), torch.sum(sizem)
-        text_info.append([xcenter,ycenter,crop_size])
-        results[i,:,:,:] = gen_input(img[i],skg[i],xcenter,ycenter,crop_size)
+        text_info.append(temp_info)
+        results[i,:,:,:] = res
     return results,text_info
 
 class GramMatrix(nn.Module):
@@ -609,7 +618,7 @@ def parse_arguments(argv):
     parser.add_argument('-display_port', default=7780,type=int,
                help='port for displaying on visdom (need to match with visdom currently open port)')
 
-    parser.add_argument('-data_path', default='/home/psangkloy3/training_catdog/',type=str,
+    parser.add_argument('-data_path', default='/home/psangkloy3/training_handbags_pretrain/',type=str,
                    help='path to the data directory, expect train_skg, train_img, val_skg, val_img')
 
     parser.add_argument('-save_dir', default='/home/psangkloy3/texturegan/save_dir_scribbler',type=str,
@@ -621,7 +630,7 @@ def parse_arguments(argv):
     parser.add_argument('-save_every',  default=1000,type=int,
                     help='no. iteration to save the models')
     
-    parser.add_argument('-load', default=14000,type=int,
+    parser.add_argument('-load', default=-1,type=int,
                    help='load generator and discrminator from iteration n')
     parser.add_argument('-load_D', default=-1,type=float,
                    help='load discriminator from iteration n, priority over load')
@@ -632,12 +641,14 @@ def parse_arguments(argv):
                     help='max resize, ratio of the original image, max value is 1')        
     parser.add_argument('-resize_min',  default=0.6,type=int,
                     help='min resize, ratio of the original image, min value 0')   
-    parser.add_argument('-crop_size_min',default=20,type=int,
+    parser.add_argument('-patch_size_min',default=20,type=int,
                     help='minumum texture patch size')   
-    parser.add_argument('-crop_size_max',default=40,type=int,
+    parser.add_argument('-patch_size_max',default=40,type=int,
                     help='max texture patch size')  
     
-    parser.add_argument('-batch_size', default=8)     
+    parser.add_argument('-batch_size', default=8)  
+    
+    parser.add_argument('-num_input_texture_patch', default=2)  
     
     parser.add_argument('-local_texture_size', default=50,type=int,
                    help='use local texture loss instead of global, set -1 to use global')
@@ -650,11 +661,13 @@ def parse_arguments(argv):
     parser.add_argument('-content_layers',  default='relu4_2',type=str,
                     help='Layer to attach content loss.')
     parser.add_argument('-style_layers',  default='relu3_2, relu4_2',type=str,
-    help='Layer to attach content loss.') 
- 
+    help='Layer to attach content loss.')   
+    
     parser.add_argument('-use_segmentation_patch', default=True,type=bool,
                    help='whether or not to inject noise into the network')
-    
+
+    parser.add_argument('-input_texture_patch', default='original_image',type=str,choices=['original_image','dtd_texture'],
+               help='whether or not to inject noise into the network')
 ############################################################################
 ############################################################################
 ############TODO: TO ADD#################################################################

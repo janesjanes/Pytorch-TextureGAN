@@ -21,8 +21,9 @@ def vis_patch(img,skg,texture_location,color='lab'):
     vis_img = np.copy(img_np)
     #print np.shape(vis_skg)
     for i in range(bs):
-        xcenter,ycenter,size = texture_location[i]
-        vis_skg[i,:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2] = vis_img[i,:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2]
+        for text_loc in texture_location[i]:
+            xcenter,ycenter,size = text_loc
+            vis_skg[i,:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2] = vis_img[i,:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2]
     
     return (vis_skg)
     
