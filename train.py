@@ -39,12 +39,13 @@ from networks import define_G, weights_init
 from models import scribbler 
 import visdom
 
-#TODO: visdom show the whole batch and on test set
-#TODO: index to name mapping for vgg layers
-#TODO: rgb/lab option
+
 def main(args):
     
+    
+
     with torch.cuda.device(args.gpu):
+        layers_map = {'relu4_2':'22','relu2_2':'8', 'relu3_2':'13'}
 
         vis=visdom.Visdom(port=args.display_port)
 
@@ -138,8 +139,8 @@ def main(args):
         criterion_feat.cuda()
         input_stack, target_img, segment, label = input_stack.cuda(), target_img.cuda(),segment.cuda(), label.cuda()
 
-        Extract_content = FeatureExtractor(feat_model.features, ['11'])
-        Extract_style = FeatureExtractor(feat_model.features, ['0','5','10','19','28'])
+        Extract_content = FeatureExtractor(feat_model.features, [layers_map[args.content_layers]])
+        Extract_style = FeatureExtractor(feat_model.features, [layers_map[x.strip()] for x in args.style_layers.split(',')])
         for epoch in range(args.num_epoch):
             for i, data in enumerate(trainLoader, 0):
 
@@ -430,6 +431,7 @@ def main(args):
 
 
 
+
                 
 
 #all in one place funcs, need to organize these:
@@ -601,19 +603,25 @@ def parse_arguments(argv):
     parser.add_argument('-local_texture_size', default=50,type=int,
                    help='use local texture loss instead of global, set -1 to use global')
     parser.add_argument('-color_space',  default='lab',type=str,choices=['lab','rgb'],
-                help='lab|rgb') 
+                help='lab|rgb')
     
     parser.add_argument('-threshold_D_max',  default=0.8,type=int,
-                    help='stop updating D when accuracy is over max')    
+                    help='stop updating D when accuracy is over max')
+    
+    parser.add_argument('-content_layers',  default='relu4_2',type=str,
+                    help='Layer to attach content loss.')
+    parser.add_argument('-style_layers',  default='relu3_2, relu4_2',type=str,
+    help='Layer to attach content loss.')   
+    
 ############################################################################
 ############################################################################
 ############TODO: TO ADD#################################################################
     parser.add_argument('-tv_weight', default=1,type=float,
                    help='weight ratio for total variation loss')
-    parser.add_argument('-content_layers',  default='relu2_2',type=str,
-                    help='Layer to attach content loss.')
-    
 
+    
+    parser.add_argument('-threshold_D_min',  default=0.3,type=int,
+                    help='stop updating G when accuracy is below min')
 
     
     parser.add_argument('-mode',  default='texture',type=str,choices=['texture','scribbler'],
@@ -642,6 +650,7 @@ def parse_arguments(argv):
     parser.add_argument('-absolute_load', default='',type=str,
                    help='load saved generator model from absolute location')
     return parser.parse_args(argv)
+
 
 if __name__ == '__main__':
     main(parse_arguments(sys.argv[1:]))
