@@ -41,8 +41,6 @@ import visdom
 
 
 def main(args):
-    
-    
 
     with torch.cuda.device(args.gpu):
         layers_map = {'relu4_2':'22','relu2_2':'8', 'relu3_2':'13'}
@@ -75,8 +73,7 @@ def main(args):
         val_display_size = args.batch_size
         val_display_sampler = SequentialSampler(indices[:val_display_size])
         valLoader = DataLoader(dataset=valDset, batch_size=val_display_size,sampler=val_display_sampler)
-       # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
-
+       
         sigmoid_flag = 1
         if args.gan =='lsgan':
             sigmoid_flag = 0 
@@ -186,7 +183,7 @@ def main(args):
                 outputab = torch.cat((outputa,outputb),1)
                 targetab = torch.cat((targeta,targetb),1)
 
-                #TODO renormalize with the right mean (but shouldn't matter much, it's around 0.5 anyway)
+                
                 if args.color_space =='lab':
                     outputlll= (torch.cat((outputl,outputl,outputl),1))
                     targetlll = (torch.cat((targetl,targetl,targetl),1))
@@ -202,9 +199,9 @@ def main(args):
 
 
                 ##################feature Loss############################
-                out_feat = Extract_content(outputlll)[0]
+                out_feat = Extract_content(renormalize(outputlll))[0]
 
-                gt_feat = Extract_content(targetlll)[0]
+                gt_feat = Extract_content(renormalize(targetlll))[0]
                 err_feat = args.feature_weight*criterion_feat(out_feat,gt_feat.detach())   
 
 
@@ -514,7 +511,29 @@ class FeatureExtractor(nn.Module):
             if name in self.extracted_layers:
                 outputs += [x]
         return outputs + [x]
+
+def renormalize(img):
+    '''
+    Renormalizes the input image to meet requirements for VGG-19 pretrained network
+    '''
     
+    forward_norm = torch.ones(img.data.size())*0.5
+    forward_norm = Variable(forward_norm.cuda())
+    img=img*(forward_norm)+forward_norm #add previous norm 
+    #return img
+    mean = img.data.new(img.data.size())
+    std = img.data.new(img.data.size())
+    mean[:, 0, :, :] = 0.485
+    mean[:, 1, :, :] = 0.456
+    mean[:, 2, :, :] = 0.406
+    std[:, 0, :, :] = 0.229
+    std[:, 1, :, :] = 0.224
+    std[:, 2, :, :] = 0.225
+    img -= Variable(mean)
+    img = img / Variable(std)
+    
+    return img    
+
 def save_network(model, network_label, epoch_label, gpu_id, save_dir):
     save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
     if not os.path.exists(save_dir):
