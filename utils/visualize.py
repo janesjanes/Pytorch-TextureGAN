@@ -4,7 +4,8 @@ from PIL import Image
 import transforms
 
 
-def vis_patch(img,skg,xcenter=64,ycenter=64,size=40,color='lab'):
+def vis_patch(img,skg,texture_location,color='lab'):
+    bs,_,_,_ = img.size()
     if color == 'lab':
         ToRGB = transforms.toRGB()
         
@@ -19,7 +20,9 @@ def vis_patch(img,skg,xcenter=64,ycenter=64,size=40,color='lab'):
     vis_skg = np.copy(skg_np)
     vis_img = np.copy(img_np)
     #print np.shape(vis_skg)
-    vis_skg[:,:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2] = vis_img[:,:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2]
+    for i in range(bs):
+        xcenter,ycenter,size = texture_location[i]
+        vis_skg[i,:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2] = vis_img[i,:,xcenter-size/2:xcenter+size/2,ycenter-size/2:ycenter+size/2]
     
     return (vis_skg)
     

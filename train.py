@@ -161,13 +161,7 @@ def main(args):
                     img=utforms.normalize_rgb(img)
                     skg=utforms.normalize_rgb(skg)  
 
-                #skg = torch.round(skg)
-               # break
-                #randomize patch position/size
-                crop_size = int( rand_between(args.crop_size_min, args.crop_size_max))
-                xcenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
-                ycenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
-                inp = gen_input(img,skg,xcenter,ycenter,crop_size)
+                inp,_ = gen_input_rand(img,skg,args.crop_size_min,args.crop_size_max)
 
 
                 img=img.cuda()
@@ -330,10 +324,8 @@ def main(args):
                         img=utforms.normalize_lab(img)
                         skg=utforms.normalize_lab(skg)
                         #norm to 0-1 minus mean
-                        crop_size = int( rand_between(args.crop_size_min, args.crop_size_max))
-                        xcenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
-                        ycenter = int( rand_between(crop_size/2,args.image_size-crop_size/2))
-                        inp = gen_input(img,skg,xcenter,ycenter,crop_size)
+
+                        inp,texture_loc = gen_input_rand(img,skg,args.crop_size_min,args.crop_size_max)
 
                         img=img.cuda()
                         skg=skg.cuda()
@@ -372,11 +364,11 @@ def main(args):
 
                     if args.color_space == 'lab':
                         out_img=vis_image(utforms.denormalize_lab(outputG.data.double().cpu()),args.color_space)
-                        inp_img=vis_patch(utforms.denormalize_lab(img.cpu()),utforms.denormalize_lab(skg.cpu()),xcenter,ycenter,crop_size,args.color_space)
+                        inp_img=vis_patch(utforms.denormalize_lab(img.cpu()),utforms.denormalize_lab(skg.cpu()),texture_loc,args.color_space)
                         tar_img=vis_image(utforms.denormalize_lab(img.cpu()),args.color_space)
                     elif args.color_space =='rgb':
                         out_img=vis_image(utforms.denormalize_rgb(outputG.data.double().cpu()),args.color_space)
-                        inp_img=vis_patch(utforms.denormalize_rgb(img.cpu()),utforms.denormalize_rgb(skg.cpu()),xcenter,ycenter,crop_size,args.color_space)
+                        inp_img=vis_patch(utforms.denormalize_rgb(img.cpu()),utforms.denormalize_rgb(skg.cpu()),texture_loc,args.color_space)
                         tar_img=vis_image(utforms.denormalize_rgb(img.cpu()),args.color_space)                    
                     out_img=[x*255 for x in out_img]#(out_img*255)#.astype('uint8')
                     #out_img=np.transpose(out_img,(2,0,1))
@@ -414,7 +406,6 @@ def main(args):
 
                 
 
-#TODO, need to organize these func:
 #all in one place funcs, need to organize these:
 def rand_between(a,b):
     return a + torch.round(torch.rand(1)*(b-a))[0]
@@ -423,9 +414,9 @@ def gen_input(img,skg,xcenter=64,ycenter=64,size=40):
     #generate input skg with random patch from img
     #input img,skg [bsx3xwxh], xcenter,ycenter, size 
     #output bsx5xwxh
-       
-    w,h = img.size()[2:4]
 
+    w,h = img.size()[1:3]
+    #print w,h
     xstart = max(xcenter-size/2,0)
     ystart = max(ycenter-size/2,0)
     xend = min(xcenter + size/2,w)
@@ -433,14 +424,38 @@ def gen_input(img,skg,xcenter=64,ycenter=64,size=40):
 
 
     input_texture = torch.ones(img.size())*(1)
-    input_sketch = skg[:,0:1,:,:] #L channel from skg
+    input_sketch = skg[0:1,:,:] #L channel from skg
     input_mask = torch.ones(input_sketch.size())*(-1)
+    
+    #print xstart, xend, ystart, yend
 
-    input_mask[:,:,xstart:xend,ystart:yend] = 1
-    input_texture[:,:,xstart:xend,ystart:yend] = img[:,:,xstart:xend,ystart:yend].clone()
+    input_mask[:,xstart:xend,ystart:yend] = 1
+    input_texture[:,xstart:xend,ystart:yend] = img[:,xstart:xend,ystart:yend].clone()
+    #print input_mask.size()
+    #print input_texture.size()
+    #print input_mask.size()
+    return torch.cat((input_sketch.cpu().float(),input_texture.float(),input_mask),0)
+    #return input_mask,input_texture,input_sketch
+def gen_input_rand(img,skg,size_min=40,size_max=60):
+    #generate input skg with random patch from img
+    #input img,skg [bsx3xwxh], xcenter,ycenter, size 
+    #output bsx5xwxh
 
-    return torch.cat((input_sketch.float(),input_texture.float(),input_mask),1)
-     
+    bs,c,w,h = img.size()
+    results = torch.Tensor(bs,5,w,h)
+    text_info = [] 
+    
+    for i in range(bs):
+            crop_size = int( rand_between(size_min, size_max))
+            xcenter = int( rand_between(crop_size/2,w-crop_size/2))
+            ycenter = int( rand_between(crop_size/2,h-crop_size/2))   
+            text_info.append([xcenter,ycenter,crop_size])
+            #print xcenter, ycenter
+            #print i, xcenter, ycenter
+            results[i,:,:,:] = gen_input(img[i],skg[i],xcenter,ycenter,crop_size)
+    return results,text_info
+
+
 class GramMatrix(nn.Module):
 
     def forward(self, input):
@@ -482,8 +497,7 @@ def save_network(model, network_label, epoch_label, gpu_id, save_dir):
 def load_network(model, network_label, epoch_label,save_dir):
     save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
     save_path = os.path.join(save_dir, save_filename)
-    model.load_state_dict(torch.load(save_path))
-    
+    model.load_state_dict(torch.load(save_path))    
     
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
