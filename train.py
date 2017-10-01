@@ -71,7 +71,7 @@ def main(args):
 
         valDset = ImageFolder('val', args.data_path, transform)
         indices = torch.randperm(len(valDset))
-        val_display_size = 10
+        val_display_size = args.batch_size
         val_display_sampler = SequentialSampler(indices[:val_display_size])
         valLoader = DataLoader(dataset=valDset, batch_size=val_display_size,sampler=val_display_sampler)
        # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
@@ -265,7 +265,7 @@ def main(args):
                 Loss_gs_graph.append(err_style.data[0])
                 #plt.imshow(vis_image(inputv.data.double().cpu()))
 
-                print i, err_G.data[0]            
+                print 'G:', i, err_G.data[0]            
 
 
                 ############################
@@ -286,11 +286,16 @@ def main(args):
                 errD_real = criterion_gan(outputD, labelv)
                 errD_real.backward()
 
-                #D_x = output_.data.mean()
+                score = Variable(torch.ones(args.batch_size))
+                _,cd,wd,hd = outputD.size()
+                D_output_size = cd*wd*hd
 
-                # train with fake
-                #noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
-                #noisev = Variable(noise)
+                clamped_output_D = outputD.clamp(0,1)
+                clamped_output_D = torch.round(clamped_output_D)
+                for acc_i in range(args.batch_size):
+                    score[acc_i] = torch.sum(clamped_output_D[acc_i])/D_output_size
+
+                real_acc = torch.mean(score)
 
                 ##################################
                 #TODO add threshold to stop updating D
@@ -303,12 +308,26 @@ def main(args):
 
                 errD_fake = criterion_gan(outputD, labelv)
                 errD_fake.backward()
+                score = Variable(torch.ones(args.batch_size))
+                _,cd,wd,hd = outputD.size()
+                D_output_size = cd*wd*hd
+
+                clamped_output_D = outputD.clamp(0,1)
+                clamped_output_D = torch.round(clamped_output_D)
+                for acc_i in range(args.batch_size):
+                    score[acc_i] = torch.sum(clamped_output_D[acc_i])/D_output_size
+
+                fake_acc = torch.mean(1-score)
+
                 #D_G_z1 = output.data.mean()
                 errD = errD_real + errD_fake
                 Loss_d_graph.append(errD.data[0])
                 optimizerD.step()
                 #TODO add discriminator accuracy
 
+
+                D_acc = ( real_acc + fake_acc )/2
+                print 'D:', 'real_acc', "%.2f" %real_acc.data[0], 'fake_acc', "%.2f" %fake_acc.data[0] ,'D_acc',D_acc.data[0]
                 if(i%args.save_every==0):
                     save_network(netG,'G',i,args.gpu,args.save_dir)
                     save_network(netD,'D',i,args.gpu,args.save_dir)
@@ -401,6 +420,7 @@ def main(args):
                     vis.line(np.array(Loss_gpl_graph),win='gpl',opts=dict(title='G-Pixel Loss-L'))
                     vis.line(np.array(Loss_gpab_graph),win='gpab',opts=dict(title='G-Pixel Loss-AB'))
                     vis.line(np.array(Loss_d_graph),win='d',opts=dict(title='D Loss'))
+
 
 
 
