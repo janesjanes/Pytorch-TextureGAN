@@ -39,9 +39,10 @@ from networks import define_G, weights_init
 from models import scribbler 
 import visdom
 
-
+#TODO: finetuning DTD
+#TODO: unmatch the sketch/texture input patch location for DTD
 def main(args):
-
+    
     with torch.cuda.device(args.gpu):
         layers_map = {'relu4_2':'22','relu2_2':'8', 'relu3_2':'13'}
 
@@ -73,7 +74,8 @@ def main(args):
         val_display_size = args.batch_size
         val_display_sampler = SequentialSampler(indices[:val_display_size])
         valLoader = DataLoader(dataset=valDset, batch_size=val_display_size,sampler=val_display_sampler)
-       
+       # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
+
         sigmoid_flag = 1
         if args.gan =='lsgan':
             sigmoid_flag = 0 
@@ -149,22 +151,26 @@ def main(args):
                 ###########################
                 netG.zero_grad()
 
-                img, skg,seg = data #LAB with negeative value
+                img, skg,seg,txt = data #LAB with negeative value
                 #output img/skg/seg rgb between 0-1
                 #output img/skg/seg lab between 0-100, -128-128 
                 if args.color_space =='lab':
                     img=utforms.normalize_lab(img)
                     skg=utforms.normalize_lab(skg)
+                   #seg = utforms.normalize_lab(seg)
                 elif args.color_space =='rgb':
                     img=utforms.normalize_rgb(img)
                     skg=utforms.normalize_rgb(skg)  
-
-                inp,_ = gen_input_rand(img,skg,args.crop_size_min,args.crop_size_max)
+                    #seg=utforms.normalize_rgb(seg)
+                if not args.input_from_seg:
+                    seg.fill_(1)
+                inp,_ = gen_input_rand(img,skg,seg[:,0,:,:],args.crop_size_min,args.crop_size_max)
 
 
                 img=img.cuda()
                 skg=skg.cuda()
                 seg=seg.cuda()
+                txt=txt.cuda()
 
                 inp = inp.cuda()
 
@@ -183,7 +189,6 @@ def main(args):
                 outputab = torch.cat((outputa,outputb),1)
                 targetab = torch.cat((targeta,targetb),1)
 
-                
                 if args.color_space =='lab':
                     outputlll= (torch.cat((outputl,outputl,outputl),1))
                     targetlll = (torch.cat((targetl,targetl,targetl),1))
@@ -296,8 +301,7 @@ def main(args):
 
                 real_acc = torch.mean(score)
 
-                ##################################
-                #TODO add threshold to stop updating D
+
                 if args.color_space =='lab':
                     outputD = netD(outputl.detach())
                 elif args.color_space =='rgb':
@@ -327,7 +331,6 @@ def main(args):
                     optimizerD.step()
                 else:
                     Loss_d_graph.append(0)
-                #TODO add discriminator accuracy
 
 
 
@@ -342,13 +345,16 @@ def main(args):
                     imgs = []
                     for ii, data in enumerate(valLoader, 0):
 
-                        img, skg, seg = data #LAB with negeative value
+                        img, skg, seg,txt = data #LAB with negeative value
                         #this is in LAB value 0/100, -128/128 etc
                         img=utforms.normalize_lab(img)
                         skg=utforms.normalize_lab(skg)
+                        #seg=utforms.normalize_lab(seg)
                         #norm to 0-1 minus mean
+                        if not args.input_from_seg:
+                            seg.fill_(1)
 
-                        inp,texture_loc = gen_input_rand(img,skg,args.crop_size_min,args.crop_size_max)
+                        inp,texture_loc = gen_input_rand(img,skg,seg[:,0,:,:],args.crop_size_min,args.crop_size_max)
 
                         img=img.cuda()
                         skg=skg.cuda()
@@ -426,11 +432,6 @@ def main(args):
                     vis.line(np.array(Loss_d_graph),win='d',opts=dict(title='D Loss'))
 
 
-
-
-
-                
-
 #all in one place funcs, need to organize these:
 def rand_between(a,b):
     return a + torch.round(torch.rand(1)*(b-a))[0]
@@ -461,25 +462,43 @@ def gen_input(img,skg,xcenter=64,ycenter=64,size=40):
     #print input_mask.size()
     return torch.cat((input_sketch.cpu().float(),input_texture.float(),input_mask),0)
     #return input_mask,input_texture,input_sketch
-def gen_input_rand(img,skg,size_min=40,size_max=60):
+def gen_input_rand(img,skg,seg,size_min=40,size_max=60):
     #generate input skg with random patch from img
     #input img,skg [bsx3xwxh], xcenter,ycenter, size 
     #output bsx5xwxh
-
+    MAX_COUNT = 1000
     bs,c,w,h = img.size()
     results = torch.Tensor(bs,5,w,h)
     text_info = [] 
-    
+    crop_size = int( rand_between(size_min, size_max))
+    xcenter = int( rand_between(crop_size/2,w-crop_size/2))
+    ycenter = int( rand_between(crop_size/2,h-crop_size/2))   
+    text_info.append([xcenter,ycenter,crop_size])    
+    seg = seg/torch.max(seg)
+    couter = 0
     for i in range(bs):
+        counter=0
+        
+        xstart = max(xcenter-crop_size/2,0)
+        ystart = max(ycenter-crop_size/2,0)
+        xend = min(xcenter + crop_size/2,w)
+        yend = min(ycenter + crop_size/2,h)
+        patch = seg[i,xstart:xend,ystart:yend]
+        sizem = torch.ones(patch.size())
+        while torch.sum(patch) >= 0.7*torch.sum(sizem):
+            if counter > MAX_COUNT:
+                break
             crop_size = int( rand_between(size_min, size_max))
             xcenter = int( rand_between(crop_size/2,w-crop_size/2))
             ycenter = int( rand_between(crop_size/2,h-crop_size/2))   
-            text_info.append([xcenter,ycenter,crop_size])
+            
+            counter= counter+1
             #print xcenter, ycenter
             #print i, xcenter, ycenter
-            results[i,:,:,:] = gen_input(img[i],skg[i],xcenter,ycenter,crop_size)
+        #print torch.sum(patch), torch.sum(sizem)
+        text_info.append([xcenter,ycenter,crop_size])
+        results[i,:,:,:] = gen_input(img[i],skg[i],xcenter,ycenter,crop_size)
     return results,text_info
-
 
 class GramMatrix(nn.Module):
 
@@ -630,7 +649,10 @@ def parse_arguments(argv):
     parser.add_argument('-content_layers',  default='relu4_2',type=str,
                     help='Layer to attach content loss.')
     parser.add_argument('-style_layers',  default='relu3_2, relu4_2',type=str,
-    help='Layer to attach content loss.')   
+    help='Layer to attach content loss.') 
+ 
+    parser.add_argument('-input_from_seg', default=True,type=bool,
+                   help='whether or not to inject noise into the network')
     
 ############################################################################
 ############################################################################

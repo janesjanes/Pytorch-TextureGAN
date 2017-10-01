@@ -30,8 +30,10 @@ def make_dataset(dir, opt):
     skg = sorted(skg)
     seg = glob.glob(dir + opt + '_seg/*/*.jpg')
     seg = sorted(seg)
+    txt = glob.glob(dir + opt + '_txt/*/*.jpg')
+    txt = sorted(txt)
     
-    return zip(img, skg, seg)
+    return zip(img, skg, seg ,txt)
 
 
 def pil_loader(path):
@@ -74,18 +76,18 @@ class ImageFolder(data.Dataset):
             tuple: (image, target) where target is class_index of the target class.
         """
         
-        img_path, skg_path, seg_path = self.imgs[index]
+        img_path, skg_path, seg_path, txt_path = self.imgs[index]
         
         img = self.loader(img_path)
         skg = self.loader(skg_path)
         seg = self.loader(seg_path)
-        
+        txt = self.loader(txt_path)
         
         if self.transform is not None:
-            img,skg,seg = self.transform([img,skg,seg])
+            img,skg,seg,txt = self.transform([img,skg,seg,txt])
             
             
-        return img, skg, seg
+        return img, skg, seg, txt
 
     def __len__(self):
         return len(self.imgs)
