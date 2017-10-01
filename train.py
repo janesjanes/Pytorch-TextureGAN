@@ -272,6 +272,7 @@ def main(args):
                 # (2) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
                 ###########################
                 # train with real
+
                 netD.zero_grad()
 
                 labelv = Variable(label)
@@ -319,14 +320,19 @@ def main(args):
 
                 fake_acc = torch.mean(1-score)
 
-                #D_G_z1 = output.data.mean()
-                errD = errD_real + errD_fake
-                Loss_d_graph.append(errD.data[0])
-                optimizerD.step()
+                D_acc = ( real_acc + fake_acc )/2
+
+                if D_acc.data[0] <args.threshold_D_max:
+                    #D_G_z1 = output.data.mean()
+                    errD = errD_real + errD_fake
+                    Loss_d_graph.append(errD.data[0])
+                    optimizerD.step()
+                else:
+                    Loss_d_graph.append(0)
                 #TODO add discriminator accuracy
 
 
-                D_acc = ( real_acc + fake_acc )/2
+
                 print 'D:', 'real_acc', "%.2f" %real_acc.data[0], 'fake_acc', "%.2f" %fake_acc.data[0] ,'D_acc',D_acc.data[0]
                 if(i%args.save_every==0):
                     save_network(netG,'G',i,args.gpu,args.save_dir)
@@ -597,6 +603,8 @@ def parse_arguments(argv):
     parser.add_argument('-color_space',  default='lab',type=str,choices=['lab','rgb'],
                 help='lab|rgb') 
     
+    parser.add_argument('-threshold_D_max',  default=0.8,type=int,
+                    help='stop updating D when accuracy is over max')    
 ############################################################################
 ############################################################################
 ############TODO: TO ADD#################################################################
