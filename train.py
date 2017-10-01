@@ -162,7 +162,7 @@ def main(args):
                     img=utforms.normalize_rgb(img)
                     skg=utforms.normalize_rgb(skg)  
                     #seg=utforms.normalize_rgb(seg)
-                if not args.input_from_seg:
+                if not args.use_segmentation_patch:
                     seg.fill_(1)
                 inp,_ = gen_input_rand(img,skg,seg[:,0,:,:],args.crop_size_min,args.crop_size_max)
 
@@ -351,7 +351,7 @@ def main(args):
                         skg=utforms.normalize_lab(skg)
                         #seg=utforms.normalize_lab(seg)
                         #norm to 0-1 minus mean
-                        if not args.input_from_seg:
+                        if not args.use_segmentation_patch:
                             seg.fill_(1)
 
                         inp,texture_loc = gen_input_rand(img,skg,seg[:,0,:,:],args.crop_size_min,args.crop_size_max)
@@ -430,6 +430,7 @@ def main(args):
                     vis.line(np.array(Loss_gpl_graph),win='gpl',opts=dict(title='G-Pixel Loss-L'))
                     vis.line(np.array(Loss_gpab_graph),win='gpab',opts=dict(title='G-Pixel Loss-AB'))
                     vis.line(np.array(Loss_d_graph),win='d',opts=dict(title='D Loss'))
+
 
 
 #all in one place funcs, need to organize these:
@@ -651,7 +652,7 @@ def parse_arguments(argv):
     parser.add_argument('-style_layers',  default='relu3_2, relu4_2',type=str,
     help='Layer to attach content loss.') 
  
-    parser.add_argument('-input_from_seg', default=True,type=bool,
+    parser.add_argument('-use_segmentation_patch', default=True,type=bool,
                    help='whether or not to inject noise into the network')
     
 ############################################################################
