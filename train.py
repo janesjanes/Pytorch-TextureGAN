@@ -44,6 +44,8 @@ import visdom
 
 def main(args):
     
+    
+
     with torch.cuda.device(args.gpu):
         layers_map = {'relu4_2':'22','relu2_2':'8', 'relu3_2':'13'}
 
@@ -169,6 +171,7 @@ def main(args):
                     seg.fill_(1)
                 inp,_ = gen_input_rand(img,skg,seg[:,0,:,:],args.patch_size_min,args.patch_size_max,args.num_input_texture_patch)
 
+                batch_size,_,_,_ = img.size()
 
                 img=img.cuda()
                 skg=skg.cuda()
@@ -293,13 +296,13 @@ def main(args):
                 errD_real = criterion_gan(outputD, labelv)
                 errD_real.backward()
 
-                score = Variable(torch.ones(args.batch_size))
+                score = Variable(torch.ones(batch_size))
                 _,cd,wd,hd = outputD.size()
                 D_output_size = cd*wd*hd
 
                 clamped_output_D = outputD.clamp(0,1)
                 clamped_output_D = torch.round(clamped_output_D)
-                for acc_i in range(args.batch_size):
+                for acc_i in range(batch_size):
                     score[acc_i] = torch.sum(clamped_output_D[acc_i])/D_output_size
 
                 real_acc = torch.mean(score)
@@ -314,13 +317,13 @@ def main(args):
 
                 errD_fake = criterion_gan(outputD, labelv)
                 errD_fake.backward()
-                score = Variable(torch.ones(args.batch_size))
+                score = Variable(torch.ones(batch_size))
                 _,cd,wd,hd = outputD.size()
                 D_output_size = cd*wd*hd
 
                 clamped_output_D = outputD.clamp(0,1)
                 clamped_output_D = torch.round(clamped_output_D)
-                for acc_i in range(args.batch_size):
+                for acc_i in range(batch_size):
                     score[acc_i] = torch.sum(clamped_output_D[acc_i])/D_output_size
 
                 fake_acc = torch.mean(1-score)
@@ -433,6 +436,7 @@ def main(args):
                     vis.line(np.array(Loss_gpl_graph),win='gpl',opts=dict(title='G-Pixel Loss-L'))
                     vis.line(np.array(Loss_gpab_graph),win='gpab',opts=dict(title='G-Pixel Loss-AB'))
                     vis.line(np.array(Loss_d_graph),win='d',opts=dict(title='D Loss'))
+
 
 
 
