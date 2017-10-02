@@ -650,7 +650,7 @@ def parse_arguments(argv):
     parser.add_argument('-patch_size_max',default=40,type=int,
                     help='max texture patch size')  
     
-    parser.add_argument('-batch_size', default=8)  
+    parser.add_argument('-batch_size', default=8,type=int)  
     
     parser.add_argument('-num_input_texture_patch', default=2)  
     
