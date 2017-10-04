@@ -23,31 +23,17 @@ def find_classes(directory):
     return classes, class_to_idx
 
 
-<<<<<<< f95da7a4b63785219f6c035fd3feb590c4fa0561
-def make_dataset(dir, opt):
+def make_dataset(directory, opt):
     # opt: 'train' or 'val'
-    img = glob.glob(dir + opt + '_img/*/*.jpg')
+    img = glob.glob(osp.join(directory, opt + '_img/*/*.jpg'))
     img = sorted(img)
-    skg = glob.glob(dir + opt + '_skg/*/*.jpg')
+    skg = glob.glob(osp.join(directory, opt + '_skg/*/*.jpg'))
     skg = sorted(skg)
-    seg = glob.glob(dir + opt + '_seg/*/*.jpg')
+    seg = glob.glob(osp.join(directory, opt + '_seg/*/*.jpg'))
     seg = sorted(seg)
-    txt = glob.glob(dir + opt + '_txt/*/*.jpg')
+    txt = glob.glob(osp.join(directory, opt + '_txt/*/*.jpg'))
     txt = sorted(txt)
-    
-    return zip(img, skg, seg ,txt)
-=======
-#TODO add val folder
-def make_dataset(directory):
-    train_img = glob.glob(osp.join(directory, 'train_img/wendy/*.jpg'))
-    train_img = sorted(train_img)
-    train_skg = glob.glob(osp.join(directory, 'train_skg/wendy/*.jpg'))
-    train_skg = sorted(train_skg)
-    train_seg = glob.glob(osp.join(directory, 'train_seg/wendy/*.jpg'))
-    train_seg = sorted(train_seg)
-    
-    return zip(train_img, train_skg, train_seg)
->>>>>>> refactoring of code
+    return list(zip(img, skg, seg ,txt))
 
 
 def pil_loader(path):
@@ -71,18 +57,9 @@ def default_loader(path):
 
 
 class ImageFolder(data.Dataset):
-<<<<<<< f95da7a4b63785219f6c035fd3feb590c4fa0561
-
     def __init__(self, opt, root, transform=None, target_transform=None,
                  loader=default_loader):
      
-=======
-    def __init__(self, root, transform=None, target_transform=None,
-                 loader=default_loader):
-     
-        imgs = make_dataset(root)
-
->>>>>>> refactoring of code
         self.root = root
         self.imgs = make_dataset(root, opt)
         self.transform = transform
@@ -105,12 +82,7 @@ class ImageFolder(data.Dataset):
         txt = self.loader(txt_path)
         
         if self.transform is not None:
-<<<<<<< f95da7a4b63785219f6c035fd3feb590c4fa0561
             img,skg,seg,txt = self.transform([img,skg,seg,txt])
-=======
-            img, skg, seg = self.transform([img, skg, seg])
->>>>>>> refactoring of code
-            
             
         return img, skg, seg, txt
 

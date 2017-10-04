@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from .models import scribbler, discriminator, texturegan, localDiscriminator
+from models import scribbler, discriminator, texturegan, localDiscriminator
 import torch.optim as optim
 from torch.autograd import Variable
 
@@ -16,17 +16,12 @@ import torchvision.models as models
 from dataloader import imfol
 from torch.utils.data.sampler import SequentialSampler
 
-from utils.visualize import vis_patch, vis_image
-
 from torch.utils.data import DataLoader
 from dataloader.imfol import ImageFolder, make_dataset
 
 from utils import transforms as custom_transforms
-import utils.transforms as utforms
 from utils.visualize import vis_patch, vis_image
-from models import scribbler, discriminator
-from .networks import define_G, weights_init
-from .models import scribbler
+from models import scribbler, discriminator, define_G, weights_init
 import argparser
 
 
@@ -52,7 +47,7 @@ def main(args):
         #for rgb the change is to feed 3 channels to D instead of just 1. and feed 3 channels to vgg. 
         #can leave pixel separate between r and gb for now. assume user use the same weights
         if args.color_space == 'lab':
-            transform = custom_transorms.Compose([
+            transform = custom_transforms.Compose([
                 custom_transforms.RandomSizedCrop(args.image_size,args.resize_min,args.resize_max),
                 custom_transforms.RandomHorizontalFlip(),
                 custom_transforms.toLAB(),
@@ -159,19 +154,19 @@ def main(args):
                 ###########################
                 netG.zero_grad()
 
-                img, skg,seg,txt = data #LAB with negeative value
+                img, skg, seg, txt = data # LAB with negeative value
                 #output img/skg/seg rgb between 0-1
                 #output img/skg/seg lab between 0-100, -128-128 
                 if args.color_space =='lab':
-                    img=utforms.normalize_lab(img)
-                    skg=utforms.normalize_lab(skg)
-                    txt=utforms.normalize_lab(txt)
-                   #seg = utforms.normalize_lab(seg)
+                    img=custom_transforms.normalize_lab(img)
+                    skg=custom_transforms.normalize_lab(skg)
+                    txt=custom_transforms.normalize_lab(txt)
+                   #seg = custom_transforms.normalize_lab(seg)
                 elif args.color_space =='rgb':
-                    img=utforms.normalize_rgb(img)
-                    skg=utforms.normalize_rgb(skg)  
-                    txt=utforms.normalize_rgb(txt)
-                    #seg=utforms.normalize_rgb(seg)
+                    img=custom_transforms.normalize_rgb(img)
+                    skg=custom_transforms.normalize_rgb(skg)
+                    txt=custom_transforms.normalize_rgb(txt)
+                    #seg=custom_transforms.normalize_rgb(seg)
                 if not args.use_segmentation_patch:
                     seg.fill_(1)
                 inp,_ = gen_input_rand(img,skg,seg[:,0,:,:],args.patch_size_min,args.patch_size_max,args.num_input_texture_patch)
@@ -251,7 +246,7 @@ def main(args):
 
 
 
-                ##################D Loss############################
+                ################## D Loss ############################
                 netD.zero_grad()
                 label_ = Variable(label)
                 if args.color_space =='lab':
@@ -350,16 +345,18 @@ def main(args):
                 if i % args.visualize_every == 0:
                     imgs = []
                     for ii, data in enumerate(valLoader, 0):
-                        img, skg, seg,txt = data #LAB with negeative value
+                        img, skg, seg,txt = data  # LAB with negeative value
                         #this is in LAB value 0/100, -128/128 etc
-                        img=utforms.normalize_lab(img)
-                        skg=utforms.normalize_lab(skg)
-                        #seg=utforms.normalize_lab(seg)
+                        img=custom_transforms.normalize_lab(img)
+                        skg=custom_transforms.normalize_lab(skg)
+                        #seg=custom_transforms.normalize_lab(seg)
                         #norm to 0-1 minus mean
                         if not args.use_segmentation_patch:
                             seg.fill_(1)
 
-                        inp,texture_loc = gen_input_rand(img,skg,seg[:,0,:,:],args.patch_size_min,args.patch_size_max,args.num_input_texture_patch)
+                        inp, texture_loc = gen_input_rand(img, skg, seg[:,0,:,:],
+                                                         args.patch_size_min, args.patch_size_max,
+                                                         args.num_input_texture_patch)
 
                         img=img.cuda()
                         skg=skg.cuda()
@@ -381,42 +378,53 @@ def main(args):
                         #segment_img=np.transpose(segment_img,(2,0,1))
                         #imgs.append(segment_img)
 
-                        #inp_img= vis_patch(utforms.denormalize_lab(img.cpu()), utforms.denormalize_lab(skg.cpu()), xcenter, ycenter, crop_size)
+                        #inp_img= vis_patch(custom_transforms.denormalize_lab(img.cpu()), custom_transforms.denormalize_lab(skg.cpu()), xcenter, ycenter, crop_size)
                         #inp_img=(inp_img*255).astype('uint8')
                         #inp_img=np.transpose(inp_img,(2,0,1))
                         #imgs.append(inp_img)
 
-                        #out_img= vis_image(utforms.denormalize_lab(outputG.data.double().cpu()))
-                        #out_img=(out_img*255).astype('uint8')
-                        #out_img=np.transpose(out_img,(2,0,1))   
-                        #imgs.append(out_img)
+                        # out_img= vis_image(custom_transforms.denormalize_lab(outputG.data.double().cpu()))
+                        # out_img=(out_img*255).astype('uint8')
+                        # out_img=np.transpose(out_img,(2,0,1))
+                        # imgs.append(out_img)
 
-                        #tar_img=vis_image(utforms.denormalize_lab(img.cpu()))
-                        #tar_img=(tar_img*255).astype('uint8')
-                        #tar_img=np.transpose(tar_img,(2,0,1))
-                        #imgs.append(tar_img)
+                        # tar_img=vis_image(custom_transforms.denormalize_lab(img.cpu()))
+                        # tar_img=(tar_img*255).astype('uint8')
+                        # tar_img=np.transpose(tar_img,(2,0,1))
+                        # imgs.append(tar_img)
 
                     if args.color_space == 'lab':
-                        out_img=vis_image(utforms.denormalize_lab(outputG.data.double().cpu()),args.color_space)
-                        inp_img=vis_patch(utforms.denormalize_lab(img.cpu()),utforms.denormalize_lab(skg.cpu()),texture_loc,args.color_space)
-                        tar_img=vis_image(utforms.denormalize_lab(img.cpu()),args.color_space)
+                        out_img = vis_image(custom_transforms.denormalize_lab(outputG.data.double().cpu()), args.color_space)
+                        inp_img = vis_patch(custom_transforms.denormalize_lab(img.cpu()),
+                                            custom_transforms.denormalize_lab(skg.cpu()),
+                                            texture_loc,
+                                            args.color_space)
+                        tar_img = vis_image(custom_transforms.denormalize_lab(img.cpu()),
+                                            args.color_space)
                     elif args.color_space =='rgb':
-                        out_img=vis_image(utforms.denormalize_rgb(outputG.data.double().cpu()),args.color_space)
-                        inp_img=vis_patch(utforms.denormalize_rgb(img.cpu()),utforms.denormalize_rgb(skg.cpu()),texture_loc,args.color_space)
-                        tar_img=vis_image(utforms.denormalize_rgb(img.cpu()),args.color_space)                    
-                    out_img=[x*255 for x in out_img]#(out_img*255)#.astype('uint8')
+
+                        out_img = vis_image(custom_transforms.denormalize_rgb(outputG.data.double().cpu()),
+                                            args.color_space)
+                        inp_img = vis_patch(custom_transforms.denormalize_rgb(img.cpu()),
+                                            custom_transforms.denormalize_rgb(skg.cpu()),
+                                            texture_loc,
+                                            args.color_space)
+                        tar_img = vis_image(custom_transforms.denormalize_rgb(img.cpu()),
+                                            args.color_space)
+
+                    out_img = [x*255 for x in out_img]  # (out_img*255)#.astype('uint8')
                     #out_img=np.transpose(out_img,(2,0,1))
 
-                    inp_img=[x*255 for x in inp_img]#(inp_img*255)#.astype('uint8')
+                    inp_img = [x*255 for x in inp_img]#(inp_img*255)#.astype('uint8')
                     #inp_img=np.transpose(inp_img,(2,0,1))
 
 
-                    tar_img=[x*255 for x in tar_img]#(tar_img*255)#.astype('uint8')
-                    #tar_img=np.transpose(tar_img,(2,0,1))
+                    tar_img = [x*255 for x in tar_img]  # (tar_img*255)#.astype('uint8')
+                    # tar_img=np.transpose(tar_img,(2,0,1))
 
-                    segment_img=vis_image((seg.cpu()),args.color_space)
-                    segment_img=[x*255 for x in segment_img]#segment_img=(segment_img*255)#.astype('uint8')
-                    #segment_img=np.transpose(segment_img,(2,0,1))
+                    segment_img = vis_image((seg.cpu()), args.color_space)
+                    segment_img = [x*255 for x in segment_img]  # segment_img=(segment_img*255)#.astype('uint8')
+                    # segment_img=np.transpose(segment_img,(2,0,1))
 
                     for i_ in range(len(out_img)):
                         imgs.append(segment_img[i_])
@@ -424,7 +432,10 @@ def main(args):
                         imgs.append(out_img[i_])
                         imgs.append(tar_img[i_])
 
-                    vis.images(imgs,win='output',opts=dict(title='Output images'))
+                    # for idx, img in enumerate(imgs):
+                    #     print(idx, type(img), img.shape)
+
+                    vis.images(imgs, win='output', opts=dict(title='Output images'))
                     #vis.image(inp_img,win='input',opts=dict(title='input'))  
                     #vis.image(tar_img,win='target',opts=dict(title='target'))
                     #vis.image(segment_img,win='segment',opts=dict(title='segment'))
@@ -444,43 +455,42 @@ def rand_between(a,b):
     return a + torch.round(torch.rand(1)*(b-a))[0]
 
 
-def gen_input(img,skg,ini_texture,ini_mask,xcenter=64,ycenter=64,size=40):
-    #generate input skg with random patch from img
-    #input img,skg [bsx3xwxh], xcenter,ycenter, size 
-    #output bsx5xwxh
+def gen_input(img, skg, ini_texture, ini_mask, xcenter=64, ycenter=64, size=40):
+    # generate input skg with random patch from img
+    # input img,skg [bsx3xwxh], xcenter,ycenter, size
+    # output bsx5xwxh
 
     w,h = img.size()[1:3]
-    #print w,h
-    xstart = max(xcenter-size/2,0)
-    ystart = max(ycenter-size/2,0)
-    xend = min(xcenter + size/2,w)
-    yend = min(ycenter + size/2,h)
-
+    # print w,h
+    xstart = max(int(xcenter - size/2), 0)
+    ystart = max(int(ycenter - size/2), 0)
+    xend = min(int(xcenter + size/2), w)
+    yend = min(int(ycenter + size/2), h)
 
     input_texture = ini_texture#torch.ones(img.size())*(1)
     input_sketch = skg[0:1,:,:] #L channel from skg
-    input_mask =ini_mask# torch.ones(input_sketch.size())*(-1)
+    input_mask =ini_mask  # torch.ones(input_sketch.size())*(-1)
     
 
-    input_mask[:,xstart:xend,ystart:yend] = 1
+    input_mask[:, xstart:xend, ystart:yend] = 1
 
-    input_texture[:,xstart:xend,ystart:yend] = img[:,xstart:xend,ystart:yend].clone()
+    input_texture[:, xstart:xend, ystart:yend] = img[:, xstart:xend, ystart:yend].clone()
 
-    return torch.cat((input_sketch.cpu().float(),input_texture.float(),input_mask),0)
+    return torch.cat((input_sketch.cpu().float(), input_texture.float(), input_mask), 0)
 
 
-def gen_input_rand(img,skg,seg,size_min=40,size_max=60,num_patch=1):
+def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
     #generate input skg with random patch from img
     #input img,skg [bsx3xwxh], xcenter,ycenter, size 
     #output bsx5xwxh
     MAX_COUNT = 1000
     bs,c,w,h = img.size()
     results = torch.Tensor(bs,5,w,h)
-    text_info = [] 
+    texture_info = []
 
     #text_info.append([xcenter,ycenter,crop_size])    
     seg = seg/torch.max(seg)
-    couter = 0
+    counter = 0
     for i in range(bs):
         counter=0
         ini_texture = torch.ones(img[0].size())*(1)
@@ -488,31 +498,31 @@ def gen_input_rand(img,skg,seg,size_min=40,size_max=60,num_patch=1):
         temp_info = []
         for j in range(num_patch):
             crop_size = int( rand_between(size_min, size_max))
-            xcenter = int( rand_between(crop_size/2,w-crop_size/2))
-            ycenter = int( rand_between(crop_size/2,h-crop_size/2))   
-            xstart = max(xcenter-crop_size/2,0)
-            ystart = max(ycenter-crop_size/2,0)
-            xend = min(xcenter + crop_size/2,w)
-            yend = min(ycenter + crop_size/2,h)
-            patch = seg[i,xstart:xend,ystart:yend]
+            xcenter = int(rand_between(crop_size/2, w-crop_size/2))
+            ycenter = int(rand_between(crop_size/2, h-crop_size/2))
+            xstart = max(int(xcenter-crop_size/2), 0)
+            ystart = max(int(ycenter-crop_size/2), 0)
+            xend = min(int(xcenter + crop_size/2), w)
+            yend = min(int(ycenter + crop_size/2), h)
+            patch = seg[i, xstart:xend, ystart:yend]
             sizem = torch.ones(patch.size())            
             while torch.sum(patch) >= 0.7*torch.sum(sizem):
                 if counter > MAX_COUNT:
                     break
-                crop_size = int( rand_between(size_min, size_max))
-                xcenter = int( rand_between(crop_size/2,w-crop_size/2))
-                ycenter = int( rand_between(crop_size/2,h-crop_size/2))   
+                crop_size = int(rand_between(size_min, size_max))
+                xcenter = int(rand_between(crop_size/2, w-crop_size/2))
+                ycenter = int(rand_between(crop_size/2, h-crop_size/2))
 
                 counter= counter+1
                 
-            temp_info.append([xcenter,ycenter,crop_size])
-            res = gen_input(img[i],skg[i],ini_texture,ini_mask,xcenter,ycenter,crop_size)
+            temp_info.append([xcenter, ycenter, crop_size])
+            res = gen_input(img[i], skg[i], ini_texture, ini_mask, xcenter, ycenter, crop_size)
           
             ini_texture = res[1:4,:,:]
             
-        text_info.append(temp_info)
+        texture_info.append(temp_info)
         results[i,:,:,:] = res
-    return results,text_info
+    return results, texture_info
 
 
 class GramMatrix(nn.Module):
@@ -522,7 +532,7 @@ class GramMatrix(nn.Module):
         # b=number of feature maps
         # (c,d)=dimensions of a f. map (N=c*d)
 
-        features = input.view(a , b, c * d)  # resise F_XL into \hat F_XL
+        features = input.view(a , b, c * d)  # resize F_XL into \hat F_XL
 
         G = torch.bmm(features, features.transpose(1,2))  # compute the gram product
 

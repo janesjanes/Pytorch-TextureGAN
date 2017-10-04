@@ -46,18 +46,19 @@ class toRGB(object):
     Transform to convert loaded into RGB color space. 
     """
     
-    def __init__(self,space ='LAB'):
+    def __init__(self, space ='LAB'):
         self.space = space
         
     def __call__(self, images):
         if self.space =='LAB':
-            #npimg = np.transpose(np.array(images), (1, 2, 0))
-            #print image
-            rgb_img = [np.transpose(color.lab2rgb(np.transpose(image.cpu().numpy(), (1,2,0))), (2,0,1)) for image in images]
+            # npimg = np.transpose(np.array(images), (1, 2, 0))
+            # print(image)
+            rgb_img = [np.transpose(color.lab2rgb(np.transpose(image, (1,2,0))), (2,0,1)) for image in images]
         elif self.space =='RGB':
-            #print np.shape(images)
-            #images = np.transpose(images.numpy(), (1, 2, 0))
+            # print np.shape(images)
+            # images = np.transpose(images.numpy(), (1, 2, 0))
             rgb_img = [(np.array(image)/255.0) for image in images]
+
         return rgb_img
 
 
