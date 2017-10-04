@@ -36,8 +36,9 @@ def parse_arguments():
     parser.add_argument('--style_weight', default=1, type=float,
                         help='weight ratio for the texture loss')
 
-    parser.add_argument('--gpu', default=[0], type=int, nargs='+',
-                        help='List of GPU IDs to use')  # TODO support cpu
+    # parser.add_argument('--gpu', default=[0], type=int, nargs='+',
+    #                     help='List of GPU IDs to use')  # TODO support cpu
+    parser.add_argument('--gpu', default=0, type=int, help="GPU ID")
 
     parser.add_argument('--display_port', default=7779, type=int,
                         help='port for displaying on visdom (need to match with visdom currently open port)')
@@ -65,25 +66,40 @@ def parse_arguments():
                         help='max resize, ratio of the original image, max value is 1')
     parser.add_argument('--resize_min', default=0.6, type=float,
                         help='min resize, ratio of the original image, min value 0')
-    parser.add_argument('--crop_size_min', default=20, type=int,
+    parser.add_argument('--patch_size_min', default=20, type=int,
                         help='minumum texture patch size')
-    parser.add_argument('--crop_size_max', default=40, type=int,
+    parser.add_argument('--patch_size_max', default=40, type=int,
                         help='max texture patch size')
 
     parser.add_argument('--batch_size', default=32, type=int, help="Training batch size")
 
+    parser.add_argument('-num_input_texture_patch', default=2)
+
     parser.add_argument('--local_texture_size', default=50, type=int,
                         help='use local texture loss instead of global, set -1 to use global')
-    parser.add_argument('--color_space', default='rgb', type=str, choices=['lab', 'rgb'],
+    parser.add_argument('--color_space', default='lab', type=str, choices=['lab', 'rgb'],
                         help='lab|rgb')
+
+    parser.add_argument('--threshold_D_max', default=0.8, type=int,
+                        help='stop updating D when accuracy is over max')
+
+    parser.add_argument('--content_layers', default='relu4_2', type=str,
+                        help='Layer to attach content loss.')
+    parser.add_argument('--style_layers', default='relu3_2, relu4_2', type=str,
+                        help='Layer to attach content loss.')
+
+    parser.add_argument('--use_segmentation_patch', default=True, type=bool,
+                        help='whether or not to inject noise into the network')
+
+    parser.add_argument('--input_texture_patch', default='original_image', type=str,
+                        choices=['original_image', 'dtd_texture'],
+                        help='whether or not to inject noise into the network')
 
     ############################################################################
     ############################################################################
     ############TODO: TO ADD #################################################################
     parser.add_argument('--tv_weight', default=1, type=float,
                         help='weight ratio for total variation loss')
-    parser.add_argument('--content_layers', default='relu2_2', type=str,
-                        help='Layer to attach content loss.')
 
     parser.add_argument('--mode', default='texture', type=str, choices=['texture', 'scribbler'],
                         help='texture|scribbler')
