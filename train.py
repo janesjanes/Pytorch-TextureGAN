@@ -30,8 +30,6 @@ import argparser
 
 def main(args):
     
-    
-
     with torch.cuda.device(args.gpu):
         layers_map = {'relu4_2':'22','relu2_2':'8', 'relu3_2':'13'}
 
@@ -169,8 +167,12 @@ def main(args):
                     #seg=custom_transforms.normalize_rgb(seg)
                 if not args.use_segmentation_patch:
                     seg.fill_(1)
-                inp,_ = gen_input_rand(img,skg,seg[:,0,:,:],args.patch_size_min,args.patch_size_max,args.num_input_texture_patch)
-
+                    
+                if args.input_texture_patch == 'original_image':
+                    inp,_ = gen_input_rand(img,skg,seg[:,0,:,:],args.patch_size_min,args.patch_size_max,args.num_input_texture_patch)
+                elif args.input_texture_patch == 'dtd_texture':
+                    inp,_ = gen_input_rand(txt,skg,seg[:,0,:,:],args.patch_size_min,args.patch_size_max,args.num_input_texture_patch)
+                    
                 batch_size,_,_,_ = img.size()
 
                 img=img.cuda()
@@ -349,19 +351,23 @@ def main(args):
                         #this is in LAB value 0/100, -128/128 etc
                         img=custom_transforms.normalize_lab(img)
                         skg=custom_transforms.normalize_lab(skg)
+                        txt=custom_transforms.normalize_lab(txt)
                         #seg=custom_transforms.normalize_lab(seg)
                         #norm to 0-1 minus mean
                         if not args.use_segmentation_patch:
                             seg.fill_(1)
-
-                        inp, texture_loc = gen_input_rand(img, skg, seg[:,0,:,:],
-                                                         args.patch_size_min, args.patch_size_max,
-                                                         args.num_input_texture_patch)
-
+                        if args.input_texture_patch == 'original_image':
+                            inp, texture_loc = gen_input_rand(img, skg, seg[:,0,:,:],
+                                                         args.patch_size_min, args.patch_size_max,args.num_input_texture_patch)
+                        elif args.input_texture_patch == 'dtd_texture':
+                            inp, texture_loc = gen_input_rand(txt, skg, seg[:,0,:,:],
+                                                         args.patch_size_min, args.patch_size_max,args.num_input_texture_patch)
+                            
+                            
                         img=img.cuda()
                         skg=skg.cuda()
                         seg=seg.cuda()
-
+                        txt = txt.cuda()
                         inp = inp.cuda()
 
                         input_stack.resize_as_(inp.float()).copy_(inp)
@@ -372,7 +378,7 @@ def main(args):
                         targetv = Variable(target_img)
 
                         outputG = netG(inputv)
-
+                        
                         #segment_img=vis_image((seg.cpu()))
                         #segment_img=(segment_img*255).astype('uint8')
                         #segment_img=np.transpose(segment_img,(2,0,1))
@@ -395,7 +401,13 @@ def main(args):
 
                     if args.color_space == 'lab':
                         out_img = vis_image(custom_transforms.denormalize_lab(outputG.data.double().cpu()), args.color_space)
-                        inp_img = vis_patch(custom_transforms.denormalize_lab(img.cpu()),
+                        if args.input_texture_patch == 'original_image':
+                            inp_img = vis_patch(custom_transforms.denormalize_lab(img.cpu()),
+                                            custom_transforms.denormalize_lab(skg.cpu()),
+                                            texture_loc,
+                                            args.color_space)
+                        elif args.input_texture_patch == 'dtd_texture':
+                            inp_img = vis_patch(custom_transforms.denormalize_lab(txt.cpu()),
                                             custom_transforms.denormalize_lab(skg.cpu()),
                                             texture_loc,
                                             args.color_space)
@@ -483,7 +495,7 @@ def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
     #generate input skg with random patch from img
     #input img,skg [bsx3xwxh], xcenter,ycenter, size 
     #output bsx5xwxh
-    MAX_COUNT = 1000
+    MAX_COUNT = 10000
     bs,c,w,h = img.size()
     results = torch.Tensor(bs,5,w,h)
     texture_info = []
@@ -506,7 +518,7 @@ def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
             yend = min(int(ycenter + crop_size/2), h)
             patch = seg[i, xstart:xend, ystart:yend]
             sizem = torch.ones(patch.size())            
-            while torch.sum(patch) >= 0.7*torch.sum(sizem):
+            while torch.sum(patch) >= 0.8*torch.sum(sizem):
                 if counter > MAX_COUNT:
                     break
                 crop_size = int(rand_between(size_min, size_max))

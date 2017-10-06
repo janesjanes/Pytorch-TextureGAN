@@ -43,21 +43,21 @@ def parse_arguments():
     parser.add_argument('--display_port', default=7779, type=int,
                         help='port for displaying on visdom (need to match with visdom currently open port)')
 
-    parser.add_argument('--data_path', default='~/training_handbags_pretrain/', type=str,
+    parser.add_argument('--data_path', default='/home/psangkloy3/training_shoes_pretrain/', type=str,
                         help='path to the data directory, expect train_skg, train_img, val_skg, val_img')
 
-    parser.add_argument('--save_dir', default='~/texturegan/save_dir_scribbler', type=str,
+    parser.add_argument('--save_dir', default='/home/psangkloy3/shoes_best_models/', type=str,
                         help='path to save the model')
 
-    parser.add_argument('--load_dir', default='~/texturegan/save_dir_first_test', type=str,
+    parser.add_argument('--load_dir', default='/home/psangkloy3/shoes_best_models/', type=str,
                         help='path to save the model')
 
     parser.add_argument('--save_every', default=1000, type=int,
                         help='no. iteration to save the models')
 
-    parser.add_argument('--load', default=-1, type=int,
+    parser.add_argument('--load', default=0, type=int,
                         help='load generator and discrminator from iteration n')
-    parser.add_argument('--load_D', default=-1, type=int,
+    parser.add_argument('--load_D', default=0, type=int,
                         help='load discriminator from iteration n, priority over load')
 
     parser.add_argument('--image_size', default=128, type=int,
@@ -73,7 +73,7 @@ def parse_arguments():
 
     parser.add_argument('--batch_size', default=32, type=int, help="Training batch size")
 
-    parser.add_argument('-num_input_texture_patch', default=2)
+    parser.add_argument('--num_input_texture_patch', default=2,type=int)
 
     parser.add_argument('--local_texture_size', default=50, type=int,
                         help='use local texture loss instead of global, set -1 to use global')
@@ -91,7 +91,7 @@ def parse_arguments():
     parser.add_argument('--use_segmentation_patch', default=True, type=bool,
                         help='whether or not to inject noise into the network')
 
-    parser.add_argument('--input_texture_patch', default='original_image', type=str,
+    parser.add_argument('--input_texture_patch', default='dtd_texture', type=str,
                         choices=['original_image', 'dtd_texture'],
                         help='whether or not to inject noise into the network')
 
