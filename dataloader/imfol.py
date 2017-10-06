@@ -3,7 +3,8 @@ import torch.utils.data as data
 from PIL import Image
 import glob
 import os
-import os.path
+import os.path as osp
+
 
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
@@ -15,25 +16,24 @@ def is_image_file(filename):
     return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
 
 
-def find_classes(dir):
-    classes = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+def find_classes(directory):
+    classes = [d for d in os.listdir(directory) if osp.isdir(os.path.join(directory, d))]
     classes.sort()
     class_to_idx = {classes[i]: i for i in range(len(classes))}
     return classes, class_to_idx
 
 
-def make_dataset(dir, opt):
+def make_dataset(directory, opt):
     # opt: 'train' or 'val'
-    img = glob.glob(dir + opt + '_img/*/*.jpg')
+    img = glob.glob(osp.join(directory, opt + '_img/*/*.jpg'))
     img = sorted(img)
-    skg = glob.glob(dir + opt + '_skg/*/*.jpg')
+    skg = glob.glob(osp.join(directory, opt + '_skg/*/*.jpg'))
     skg = sorted(skg)
-    seg = glob.glob(dir + opt + '_seg/*/*.jpg')
+    seg = glob.glob(osp.join(directory, opt + '_seg/*/*.jpg'))
     seg = sorted(seg)
-    txt = glob.glob(dir + opt + '_txt/*/*.jpg')
+    txt = glob.glob(osp.join(directory, opt + '_txt/*/*.jpg'))
     txt = sorted(txt)
-    
-    return zip(img, skg, seg ,txt)
+    return list(zip(img, skg, seg ,txt))
 
 
 def pil_loader(path):
@@ -53,12 +53,10 @@ def accimage_loader(path):
 
 
 def default_loader(path):
-   
     return pil_loader(path)
 
 
 class ImageFolder(data.Dataset):
-
     def __init__(self, opt, root, transform=None, target_transform=None,
                  loader=default_loader):
      
@@ -85,7 +83,6 @@ class ImageFolder(data.Dataset):
         
         if self.transform is not None:
             img,skg,seg,txt = self.transform([img,skg,seg,txt])
-            
             
         return img, skg, seg, txt
 

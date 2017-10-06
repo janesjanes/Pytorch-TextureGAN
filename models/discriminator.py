@@ -46,8 +46,9 @@ class Discriminator(nn.Module):
 
         return nn.Sequential(*sequence)
 
-    def forward(self, input):
-        return self.model(input)
+    def forward(self, x):
+        return self.model(x)
+
 
 class NLayerDiscriminator(nn.Module):
     def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d, use_sigmoid=False, gpu_ids=[]):

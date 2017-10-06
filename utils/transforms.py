@@ -1,14 +1,10 @@
 from __future__ import division
-from skimage import color
-from PIL import Image
-import numpy as np
-import torch
-
 import torchvision.transforms
 import torch
 import math
 import random
 from PIL import Image, ImageOps
+from skimage import color
 try:
     import accimage
 except ImportError:
@@ -30,6 +26,7 @@ class toLAB(object):
         lab_images = [color.rgb2lab(np.array(image)/255.0) for image in images]
         return lab_images
 
+
 class toRGB_(object):
     """
     Transform to convert loaded into LAB space. 
@@ -42,26 +39,29 @@ class toRGB_(object):
         images = np.transpose(images.numpy(), (1, 2, 0))
         rgb_images = [(np.array(image)/255.0) for image in images]
         return rgb_images
-    
+
+
 class toRGB(object):
     """
     Transform to convert loaded into RGB color space. 
     """
     
-    def __init__(self,space ='LAB'):
+    def __init__(self, space ='LAB'):
         self.space = space
         
     def __call__(self, images):
         if self.space =='LAB':
-            #npimg = np.transpose(np.array(images), (1, 2, 0))
-            #print image
-            rgb_img = [np.transpose(color.lab2rgb(np.transpose(image.cpu().numpy(),(1,2,0))),(2,0,1)) for image in images]
+            # npimg = np.transpose(np.array(images), (1, 2, 0))
+            # print(image)
+            rgb_img = [np.transpose(color.lab2rgb(np.transpose(image, (1,2,0))), (2,0,1)) for image in images]
         elif self.space =='RGB':
-            #print np.shape(images)
-            #images = np.transpose(images.numpy(), (1, 2, 0))
-            rgb_img = [((np.array(image)/255.0)) for image in images]            
+            # print np.shape(images)
+            # images = np.transpose(images.numpy(), (1, 2, 0))
+            rgb_img = [(np.array(image)/255.0) for image in images]
+
         return rgb_img
-    
+
+
 class toTensor(object):
     """Transforms a Numpy image to torch tensor"""
     
@@ -71,6 +71,7 @@ class toTensor(object):
     def __call__(self, pics):
         imgs = [torch.from_numpy(pic.transpose((2, 0, 1))) for pic in pics]
         return imgs
+
 
 def normalize_lab(lab_img):
     """
@@ -139,10 +140,9 @@ def denormalize_lab(lab_img):
     stds[:,0,:,:] = 50
     stds[:,1,:,:] = 128
     stds[:,2,:,:] = 128
-    
-    
-    
+
     return lab_img.double() *stds.double() + mean.double()
+
 
 def denormalize_rgb(rgb_img):
     """
@@ -164,12 +164,12 @@ def denormalize_rgb(rgb_img):
     stds[:,0,:,:] = 0.229
     stds[:,1,:,:] = 0.224
     stds[:,2,:,:] = 0.225
-    
-    
-    
-    return (rgb_img.double() *stds.double() + mean.double())
+
+    return rgb_img.double() *stds.double() + mean.double()
+
+
 ###########################################################################
-#multiple images transformation -- based on transform from torchvision
+# multiple images transformation -- based on transform from torchvision
 
 
 class Compose(object):
@@ -218,6 +218,7 @@ class Scale(object):
         """       
         return [self.transform(img) for img in imgs]
 
+
 class CenterCrop(object):
     """Crops the given PIL.Image at the center.
     Args:
@@ -236,12 +237,13 @@ class CenterCrop(object):
     def __call__(self, imgs):
         """
         Args:
-            img (PIL.Image): Image to be cropped.
+            imgs (PIL.Image): Image to be cropped.
         Returns:
             PIL.Image: Cropped image.
         """
         return [self.transform(img) for img in imgs]
-    
+
+
 class Pad(object):
     """Pad the given PIL.Image on all sides with the given "pad" value.
     Args:
@@ -275,6 +277,7 @@ class Pad(object):
         """
         
         return [self.transform(img) for img in imgs]
+
 
 class RandomCrop(object):
     """Crop the given PIL.Image at a random location.
@@ -314,6 +317,7 @@ class RandomCrop(object):
         y1 = random.randint(0, h - th)
         return [img.crop((x1, y1, x1 + tw, y1 + th)) for img in imgs]
 
+
 class RandomHorizontalFlip(object):
     """Horizontally flip the given PIL.Image randomly with a probability of 0.5."""
 
@@ -327,6 +331,7 @@ class RandomHorizontalFlip(object):
         if random.random() < 0.5:
             return [img.transpose(Image.FLIP_LEFT_RIGHT) for img in imgs]
         return imgs
+
 
 class RandomSizedCrop(object):
     """Crop the given PIL.Image to random size and aspect ratio.
