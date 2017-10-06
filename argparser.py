@@ -94,7 +94,10 @@ def parse_arguments():
     parser.add_argument('--input_texture_patch', default='dtd_texture', type=str,
                         choices=['original_image', 'dtd_texture'],
                         help='whether or not to inject noise into the network')
-
+    
+    parser.add_argument('--loss_texture', default='texture_mask', type=str,
+                        choices=['original_image', 'texture_mask','texture_patch'],
+                        help='whether or not to inject noise into the network')
     ############################################################################
     ############################################################################
     ############TODO: TO ADD #################################################################

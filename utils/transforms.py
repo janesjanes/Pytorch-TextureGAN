@@ -96,6 +96,24 @@ def normalize_lab(lab_img):
     
     return (lab_img.double() - mean.double())/stds.double()
 
+def normalize_seg(seg):
+    """
+    Normalizes the LAB image to lie in range 0-1
+    
+    Args:
+    lab_img : torch.Tensor img in lab space
+    
+    Returns:
+    lab_img : torch.Tensor Normalized lab_img 
+    """
+    result = seg[:,0,:,:]
+    if torch.max(result) >1:
+        result = result/100.0
+    result = torch.round(result)
+    
+    
+    return result
+
 def normalize_rgb(rgb_img):
     """
     Normalizes the LAB image to lie in range 0-1
