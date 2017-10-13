@@ -122,6 +122,7 @@ def main(args):
 
         input_stack = torch.FloatTensor()
         target_img = torch.FloatTensor()
+        target_texture = torch.FloatTensor()
         segment = torch.FloatTensor()
 
 
@@ -139,7 +140,7 @@ def main(args):
         criterion_pixel_l.cuda()
         criterion_pixel_ab.cuda()
         criterion_feat.cuda()
-        input_stack, target_img, segment, label = input_stack.cuda(), target_img.cuda(),segment.cuda(), label.cuda()
+        input_stack, target_img, target_texture, segment, label = input_stack.cuda(), target_img.cuda(),target_texture.cuda(), segment.cuda(), label.cuda()
 
         Extract_content = FeatureExtractor(feat_model.features, [layers_map[args.content_layers]])
         Extract_style = FeatureExtractor(feat_model.features, [layers_map[x.strip()] for x in args.style_layers.split(',')])
@@ -161,14 +162,29 @@ def main(args):
                     img=custom_transforms.normalize_lab(img)
                     skg=custom_transforms.normalize_lab(skg)
                     txt=custom_transforms.normalize_lab(txt)
+                    seg=custom_transforms.normalize_seg(seg)
                    #seg = custom_transforms.normalize_lab(seg)
                 elif args.color_space =='rgb':
                     img=custom_transforms.normalize_rgb(img)
                     skg=custom_transforms.normalize_rgb(skg)
                     txt=custom_transforms.normalize_rgb(txt)
                     #seg=custom_transforms.normalize_rgb(seg)
+                #print seg
+                
                 if not args.use_segmentation_patch:
                     seg.fill_(1)
+                    
+                bs,w,h =seg.size()
+                
+                seg = seg.view(bs,1,w,h)
+                seg = torch.cat((seg,seg,seg),1)
+                #import pdb; pdb.set_trace() 
+
+                temp = torch.ones(seg.size())*(1-seg).float()
+                temp[:,1,:,:] = 0#torch.ones(seg[:,1,:,:].size())*(1-seg[:,1,:,:]).float()
+                temp[:,2,:,:] = 0#torch.ones(seg[:,2,:,:].size())*(1-seg[:,2,:,:]).float()
+
+                txt = txt.float()*seg.float() + temp
                     
                 if args.input_texture_patch == 'original_image':
                     inp,_ = gen_input_rand(img,skg,seg[:,0,:,:],args.patch_size_min,args.patch_size_max,args.num_input_texture_patch)
@@ -183,29 +199,61 @@ def main(args):
                 txt=txt.cuda()
 
                 inp = inp.cuda()
+                
+                
+                
 
                 input_stack.resize_as_(inp.float()).copy_(inp)
                 target_img.resize_as_(img.float()).copy_(img)
                 segment.resize_as_(seg.float()).copy_(seg)
+                target_texture.resize_as_(txt.float()).copy_(txt)
+                
+                assert torch.max(seg) <= 1
 
                 inputv = Variable(input_stack)
-                targetv = Variable(target_img)
+                gtimgv = Variable(target_img)
+                segv =Variable(segment)
+                txtv = Variable(target_texture)
 
                 outputG = netG(inputv)
 
                 outputl,outputa,outputb=torch.chunk((outputG),3,dim=1)
 
-                targetl,targeta,targetb = torch.chunk(targetv,3,dim=1)
+                gtl,gta,gtb = torch.chunk(gtimgv,3,dim=1)
+                txtl,txta,txtb = torch.chunk(txtv,3,dim=1)
+                
                 outputab = torch.cat((outputa,outputb),1)
-                targetab = torch.cat((targeta,targetb),1)
+                gtab = torch.cat((gta,gtb),1)
+                txtab = torch.cat((txta,txtb),1)
 
                 if args.color_space =='lab':
                     outputlll= (torch.cat((outputl,outputl,outputl),1))
-                    targetlll = (torch.cat((targetl,targetl,targetl),1))
+                    gtlll = (torch.cat((gtl,gtl,gtl),1))
+                    txtlll = torch.cat((txtl,txtl,txtl),1)
                 elif args.color_space =='rgb':
                     outputlll= outputG#(torch.cat((outputl,outputl,outputl),1))
-                    targetlll = targetv#(torch.cat((targetl,targetl,targetl),1))                
-
+                    gtlll = gtv#(torch.cat((targetl,targetl,targetl),1))                
+                    txtlll = txtv
+                if args.loss_texture =='original_image':
+                    targetl = gtl
+                    targetab = gtab
+                    targetlll = gtlll
+                else:
+                    #if args.loss_texture == 'texture_mask':
+                        #remove baskground dtd
+                   #     txtl = segv[:,0:1,:,:]*txtl
+                   #     txtab=segv[:,1:3,:,:]*txtab
+                   #     txtlll=segv*txtlll
+                    #elif args.loss_texture == 'texture_patch':
+                        
+                    targetl = txtl
+                    targetab = txtab
+                    targetlll = txtlll
+                    
+                    #print seg
+                    
+                #import pdb; pdb.set_trace()         
+                   
                 ##################Pixel L Loss############################
                 err_pixel_l = args.pixel_weight_l*criterion_pixel_l(outputl,targetl)
 
@@ -216,7 +264,7 @@ def main(args):
                 ##################feature Loss############################
                 out_feat = Extract_content(renormalize(outputlll))[0]
 
-                gt_feat = Extract_content(renormalize(targetlll))[0]
+                gt_feat = Extract_content(renormalize(gtlll))[0]
                 err_feat = args.feature_weight*criterion_feat(out_feat,gt_feat.detach())   
 
 
@@ -291,7 +339,7 @@ def main(args):
                 if args.color_space =='lab':
                     outputD = netD(targetl)
                 elif args.color_space =='rgb':
-                    outputD = netD(targetv)
+                    outputD = netD(gtv)
 
                 label.resize_(outputD.data.size())
                 labelv = Variable(label.fill_(real_label))
@@ -354,15 +402,28 @@ def main(args):
                         img=custom_transforms.normalize_lab(img)
                         skg=custom_transforms.normalize_lab(skg)
                         txt=custom_transforms.normalize_lab(txt)
+                        seg=custom_transforms.normalize_seg(seg)
+                        
+                        bs,w,h =seg.size()
+                
+                        seg = seg.view(bs,1,w,h)
+                        seg = torch.cat((seg,seg,seg),1)
+                        #import pdb; pdb.set_trace() 
+                        
+                        temp = torch.ones(seg.size())*(1-seg).float()
+                        temp[:,1,:,:] = 0#torch.ones(seg[:,1,:,:].size())*(1-seg[:,1,:,:]).float()
+                        temp[:,2,:,:] = 0#torch.ones(seg[:,2,:,:].size())*(1-seg[:,2,:,:]).float()
+                        
+                        txt = txt.float()*seg.float() + temp
                         #seg=custom_transforms.normalize_lab(seg)
                         #norm to 0-1 minus mean
                         if not args.use_segmentation_patch:
                             seg.fill_(1)
                         if args.input_texture_patch == 'original_image':
-                            inp, texture_loc = gen_input_rand(img, skg, seg[:,0,:,:],
+                            inp, texture_loc = gen_input_rand(img, skg, seg[:,0,:,:]*100,
                                                          args.patch_size_min, args.patch_size_max,args.num_input_texture_patch)
                         elif args.input_texture_patch == 'dtd_texture':
-                            inp, texture_loc = gen_input_rand(txt, skg, seg[:,0,:,:],
+                            inp, texture_loc = gen_input_rand(txt, skg, seg[:,0,:,:]*100,
                                                          args.patch_size_min, args.patch_size_max,args.num_input_texture_patch)
                             
                             
@@ -498,7 +559,7 @@ def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
     #generate input skg with random patch from img
     #input img,skg [bsx3xwxh], xcenter,ycenter, size 
     #output bsx5xwxh
-    MAX_COUNT = 10000
+    MAX_COUNT = 10
     bs,c,w,h = img.size()
     results = torch.Tensor(bs,5,w,h)
     texture_info = []
