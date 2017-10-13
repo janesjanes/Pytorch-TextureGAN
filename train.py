@@ -21,7 +21,7 @@ from dataloader.imfol import ImageFolder, make_dataset
 
 from utils import transforms as custom_transforms
 from utils.visualize import vis_patch, vis_image
-from models import scribbler, discriminator, define_G, weights_init
+from models import scribbler, discriminator, define_G, weights_init, scribbler_dilate_128
 import argparser
 
 
@@ -83,6 +83,8 @@ def main(args):
             netG = texturegan.TextureGAN(5, 3, 32)
         elif args.model == 'pix2pix':
             netG = define_G(5, 3, 32)
+        elif args.model == 'scribbler_dilate_128':
+            netG = scribbler_dilate_128.ScribblerDilate128(5, 3, 32)
         else:
             print(args.model + ' not support. Using Scribbler model')
             netG = scribbler.Scribbler(5, 3, 32)
@@ -430,6 +432,7 @@ def main(args):
                         seg=seg.cuda()
                         txt = txt.cuda()
                         inp = inp.cuda()
+                        print inp.size()
 
                         input_stack.resize_as_(inp.float()).copy_(inp)
                         target_img.resize_as_(img.float()).copy_(img)
