@@ -12,7 +12,7 @@ def parse_arguments():
     parser.add_argument('--gan', default='lsgan', type=str, choices=['dcgan', 'lsgan', 'wgan', 'improved wgan'],
                         help='dcgan|lsgan|wgan|improved wgan')  # todo wgan/improved wgan
 
-    parser.add_argument('--model', default='scribbler', type=str, choices=['scribbler', 'pix2pix'],
+    parser.add_argument('--model', default='scribbler', type=str, choices=['scribbler', 'pix2pix','scribbler_dilate_128'],
                         help='scribbler|pix2pix')
 
     parser.add_argument('--num_epoch', default=1, type=int,
