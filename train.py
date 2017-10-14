@@ -103,6 +103,117 @@ def renormalize(img):
     return img
 
 
+def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graphs, args):
+    imgs = []
+    for ii, data in enumerate(val_loader, 0):
+        img, skg, seg, txt = data  # LAB with negeative value
+        # this is in LAB value 0/100, -128/128 etc
+        img = custom_transforms.normalize_lab(img)
+        skg = custom_transforms.normalize_lab(skg)
+        txt = custom_transforms.normalize_lab(txt)
+        seg = custom_transforms.normalize_seg(seg)
+
+        bs, w, h = seg.size()
+
+        seg = seg.view(bs, 1, w, h)
+        seg = torch.cat((seg, seg, seg), 1)
+
+        temp = torch.ones(seg.size()) * (1 - seg).float()
+        temp[:, 1, :, :] = 0  # torch.ones(seg[:,1,:,:].size())*(1-seg[:,1,:,:]).float()
+        temp[:, 2, :, :] = 0  # torch.ones(seg[:,2,:,:].size())*(1-seg[:,2,:,:]).float()
+
+        txt = txt.float() * seg.float() + temp
+        # seg=custom_transforms.normalize_lab(seg)
+        # norm to 0-1 minus mean
+        if not args.use_segmentation_patch:
+            seg.fill_(1)
+        if args.input_texture_patch == 'original_image':
+            inp, texture_loc = gen_input_rand(img, skg, seg[:, 0, :, :] * 100,
+                                              args.patch_size_min, args.patch_size_max,
+                                              args.num_input_texture_patch)
+        elif args.input_texture_patch == 'dtd_texture':
+            inp, texture_loc = gen_input_rand(txt, skg, seg[:, 0, :, :] * 100,
+                                              args.patch_size_min, args.patch_size_max,
+                                              args.num_input_texture_patch)
+
+        img = img.cuda()
+        skg = skg.cuda()
+        seg = seg.cuda()
+        txt = txt.cuda()
+        inp = inp.cuda()
+
+        inp.size()
+
+        input_stack.resize_as_(inp.float()).copy_(inp)
+        target_img.resize_as_(img.float()).copy_(img)
+        segment.resize_as_(seg.float()).copy_(seg)
+
+        inputv = Variable(input_stack)
+        targetv = Variable(target_img)
+
+        outputG = netG(inputv)
+
+    if args.color_space == 'lab':
+        out_img = vis_image(custom_transforms.denormalize_lab(outputG.data.double().cpu()),
+                            args.color_space)
+        if args.input_texture_patch == 'original_image':
+            inp_img = vis_patch(custom_transforms.denormalize_lab(img.cpu()),
+                                custom_transforms.denormalize_lab(skg.cpu()),
+                                texture_loc,
+                                args.color_space)
+        elif args.input_texture_patch == 'dtd_texture':
+            inp_img = vis_patch(custom_transforms.denormalize_lab(txt.cpu()),
+                                custom_transforms.denormalize_lab(skg.cpu()),
+                                texture_loc,
+                                args.color_space)
+        tar_img = vis_image(custom_transforms.denormalize_lab(img.cpu()),
+                            args.color_space)
+    elif args.color_space == 'rgb':
+
+        out_img = vis_image(custom_transforms.denormalize_rgb(outputG.data.double().cpu()),
+                            args.color_space)
+        inp_img = vis_patch(custom_transforms.denormalize_rgb(img.cpu()),
+                            custom_transforms.denormalize_rgb(skg.cpu()),
+                            texture_loc,
+                            args.color_space)
+        tar_img = vis_image(custom_transforms.denormalize_rgb(img.cpu()),
+                            args.color_space)
+
+    out_img = [x * 255 for x in out_img]  # (out_img*255)#.astype('uint8')
+    # out_img=np.transpose(out_img,(2,0,1))
+
+    inp_img = [x * 255 for x in inp_img]  # (inp_img*255)#.astype('uint8')
+    # inp_img=np.transpose(inp_img,(2,0,1))
+
+    tar_img = [x * 255 for x in tar_img]  # (tar_img*255)#.astype('uint8')
+    # tar_img=np.transpose(tar_img,(2,0,1))
+
+    segment_img = vis_image((seg.cpu()), args.color_space)
+    segment_img = [x * 255 for x in segment_img]  # segment_img=(segment_img*255)#.astype('uint8')
+    # segment_img=np.transpose(segment_img,(2,0,1))
+
+    for i_ in range(len(out_img)):
+        imgs.append(segment_img[i_])
+        imgs.append(inp_img[i_])
+        imgs.append(out_img[i_])
+        imgs.append(tar_img[i_])
+
+    # for idx, img in enumerate(imgs):
+    #     print(idx, type(img), img.shape)
+
+    vis.images(imgs, win='output', opts=dict(title='Output images'))
+    # vis.image(inp_img,win='input',opts=dict(title='input'))
+    # vis.image(tar_img,win='target',opts=dict(title='target'))
+    # vis.image(segment_img,win='segment',opts=dict(title='segment'))
+    vis.line(np.array(loss_graphs["gs"]), win='gs', opts=dict(title='G-Style Loss'))
+    vis.line(np.array(loss_graphs["g"]), win='g', opts=dict(title='G Total Loss'))
+    vis.line(np.array(loss_graphs["gd"]), win='gd', opts=dict(title='G-Discriminator Loss'))
+    vis.line(np.array(loss_graphs["gf"]), win='gf', opts=dict(title='G-Feature Loss'))
+    vis.line(np.array(loss_graphs["gpl"]), win='gpl', opts=dict(title='G-Pixel Loss-L'))
+    vis.line(np.array(loss_graphs["gpab"]), win='gpab', opts=dict(title='G-Pixel Loss-AB'))
+    vis.line(np.array(loss_graphs["d"]), win='d', opts=dict(title='D Loss'))
+
+
 def train(model, train_loader, val_loader, input_stack, target_img, target_texture,
           segment, label, extract_content, extract_style, loss_graph, vis, args):
 
@@ -222,8 +333,6 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             targetlll = txtlll
 
             # print seg
-
-        # import pdb; pdb.set_trace()
 
         ##################Pixel L Loss############################
         err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl, targetl)
@@ -358,133 +467,4 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             save_network(netD, 'D', i, args.gpu, args.save_dir)
 
         if i % args.visualize_every == 0:
-            imgs = []
-            for ii, data in enumerate(val_loader, 0):
-                img, skg, seg, txt = data  # LAB with negeative value
-                # this is in LAB value 0/100, -128/128 etc
-                img = custom_transforms.normalize_lab(img)
-                skg = custom_transforms.normalize_lab(skg)
-                txt = custom_transforms.normalize_lab(txt)
-                seg = custom_transforms.normalize_seg(seg)
-
-                bs, w, h = seg.size()
-
-                seg = seg.view(bs, 1, w, h)
-                seg = torch.cat((seg, seg, seg), 1)
-                # import pdb; pdb.set_trace()
-
-                temp = torch.ones(seg.size()) * (1 - seg).float()
-                temp[:, 1, :, :] = 0  # torch.ones(seg[:,1,:,:].size())*(1-seg[:,1,:,:]).float()
-                temp[:, 2, :, :] = 0  # torch.ones(seg[:,2,:,:].size())*(1-seg[:,2,:,:]).float()
-
-                txt = txt.float() * seg.float() + temp
-                # seg=custom_transforms.normalize_lab(seg)
-                # norm to 0-1 minus mean
-                if not args.use_segmentation_patch:
-                    seg.fill_(1)
-                if args.input_texture_patch == 'original_image':
-                    inp, texture_loc = gen_input_rand(img, skg, seg[:, 0, :, :] * 100,
-                                                      args.patch_size_min, args.patch_size_max,
-                                                      args.num_input_texture_patch)
-                elif args.input_texture_patch == 'dtd_texture':
-                    inp, texture_loc = gen_input_rand(txt, skg, seg[:, 0, :, :] * 100,
-                                                      args.patch_size_min, args.patch_size_max,
-                                                      args.num_input_texture_patch)
-
-                img = img.cuda()
-                skg = skg.cuda()
-                seg = seg.cuda()
-                txt = txt.cuda()
-                inp = inp.cuda()
-                print
-                inp.size()
-
-                input_stack.resize_as_(inp.float()).copy_(inp)
-                target_img.resize_as_(img.float()).copy_(img)
-                segment.resize_as_(seg.float()).copy_(seg)
-
-                inputv = Variable(input_stack)
-                targetv = Variable(target_img)
-
-                outputG = netG(inputv)
-
-                # segment_img=vis_image((seg.cpu()))
-                # segment_img=(segment_img*255).astype('uint8')
-                # segment_img=np.transpose(segment_img,(2,0,1))
-                # imgs.append(segment_img)
-
-                # inp_img= vis_patch(custom_transforms.denormalize_lab(img.cpu()), custom_transforms.denormalize_lab(skg.cpu()), xcenter, ycenter, crop_size)
-                # inp_img=(inp_img*255).astype('uint8')
-                # inp_img=np.transpose(inp_img,(2,0,1))
-                # imgs.append(inp_img)
-
-                # out_img= vis_image(custom_transforms.denormalize_lab(outputG.data.double().cpu()))
-                # out_img=(out_img*255).astype('uint8')
-                # out_img=np.transpose(out_img,(2,0,1))
-                # imgs.append(out_img)
-
-                # tar_img=vis_image(custom_transforms.denormalize_lab(img.cpu()))
-                # tar_img=(tar_img*255).astype('uint8')
-                # tar_img=np.transpose(tar_img,(2,0,1))
-                # imgs.append(tar_img)
-
-            if args.color_space == 'lab':
-                out_img = vis_image(custom_transforms.denormalize_lab(outputG.data.double().cpu()),
-                                    args.color_space)
-                if args.input_texture_patch == 'original_image':
-                    inp_img = vis_patch(custom_transforms.denormalize_lab(img.cpu()),
-                                        custom_transforms.denormalize_lab(skg.cpu()),
-                                        texture_loc,
-                                        args.color_space)
-                elif args.input_texture_patch == 'dtd_texture':
-                    inp_img = vis_patch(custom_transforms.denormalize_lab(txt.cpu()),
-                                        custom_transforms.denormalize_lab(skg.cpu()),
-                                        texture_loc,
-                                        args.color_space)
-                tar_img = vis_image(custom_transforms.denormalize_lab(img.cpu()),
-                                    args.color_space)
-            elif args.color_space == 'rgb':
-
-                out_img = vis_image(custom_transforms.denormalize_rgb(outputG.data.double().cpu()),
-                                    args.color_space)
-                inp_img = vis_patch(custom_transforms.denormalize_rgb(img.cpu()),
-                                    custom_transforms.denormalize_rgb(skg.cpu()),
-                                    texture_loc,
-                                    args.color_space)
-                tar_img = vis_image(custom_transforms.denormalize_rgb(img.cpu()),
-                                    args.color_space)
-
-            out_img = [x * 255 for x in out_img]  # (out_img*255)#.astype('uint8')
-            # out_img=np.transpose(out_img,(2,0,1))
-
-            inp_img = [x * 255 for x in inp_img]  # (inp_img*255)#.astype('uint8')
-            # inp_img=np.transpose(inp_img,(2,0,1))
-
-
-            tar_img = [x * 255 for x in tar_img]  # (tar_img*255)#.astype('uint8')
-            # tar_img=np.transpose(tar_img,(2,0,1))
-
-            segment_img = vis_image((seg.cpu()), args.color_space)
-            segment_img = [x * 255 for x in segment_img]  # segment_img=(segment_img*255)#.astype('uint8')
-            # segment_img=np.transpose(segment_img,(2,0,1))
-
-            for i_ in range(len(out_img)):
-                imgs.append(segment_img[i_])
-                imgs.append(inp_img[i_])
-                imgs.append(out_img[i_])
-                imgs.append(tar_img[i_])
-
-            # for idx, img in enumerate(imgs):
-            #     print(idx, type(img), img.shape)
-
-            vis.images(imgs, win='output', opts=dict(title='Output images'))
-            # vis.image(inp_img,win='input',opts=dict(title='input'))
-            # vis.image(tar_img,win='target',opts=dict(title='target'))
-            # vis.image(segment_img,win='segment',opts=dict(title='segment'))
-            vis.line(np.array(loss_graph["gs"]), win='gs', opts=dict(title='G-Style Loss'))
-            vis.line(np.array(loss_graph["g"]), win='g', opts=dict(title='G Total Loss'))
-            vis.line(np.array(loss_graph["gd"]), win='gd', opts=dict(title='G-Discriminator Loss'))
-            vis.line(np.array(loss_graph["gf"]), win='gf', opts=dict(title='G-Feature Loss'))
-            vis.line(np.array(loss_graph["gpl"]), win='gpl', opts=dict(title='G-Pixel Loss-L'))
-            vis.line(np.array(loss_graph["gpab"]), win='gpab', opts=dict(title='G-Pixel Loss-AB'))
-            vis.line(np.array(loss_graph["d"]), win='d', opts=dict(title='D Loss'))
+            visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graphs, args)
