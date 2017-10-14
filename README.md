@@ -1,2 +1,3 @@
 # TextureGAN
-Pytorch re-implimentation of TextureGAN
+
+Pytorch implementation of TextureGAN
