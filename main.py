@@ -12,7 +12,7 @@ from dataloader.imfol import ImageFolder
 
 from utils import transforms as custom_transforms
 from models import scribbler, discriminator, texturegan, define_G, weights_init, \
-    scribbler_dilate_128, GramMatrix, FeatureExtractor
+    scribbler_dilate_128, FeatureExtractor, load_network
 from train import train
 import argparser
 
@@ -173,22 +173,6 @@ def main(args):
         for epoch in range(args.num_epoch):
             train(model, train_loader, val_loader, input_stack, target_img, target_texture,
                   segment, label, extract_content, extract_style, loss_graph, vis, args)
-
-
-
-def save_network(model, network_label, epoch_label, gpu_id, save_dir):
-    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    save_path = os.path.join(save_dir, save_filename)
-    torch.save(model.cpu().state_dict(), save_path)
-    model.cuda(device_id=gpu_id)
-
-
-def load_network(model, network_label, epoch_label, save_dir):
-    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
-    save_path = os.path.join(save_dir, save_filename)
-    model.load_state_dict(torch.load(save_path))
 
 
 if __name__ == '__main__':

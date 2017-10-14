@@ -2,6 +2,22 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
+import os
+
+
+def save_network(model, network_label, epoch_label, gpu_id, save_dir):
+    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path = os.path.join(save_dir, save_filename)
+    torch.save(model.cpu().state_dict(), save_path)
+    model.cuda(device_id=gpu_id)
+
+
+def load_network(model, network_label, epoch_label, save_dir):
+    save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
+    save_path = os.path.join(save_dir, save_filename)
+    model.load_state_dict(torch.load(save_path))
 
 
 def weights_init(m):
