@@ -117,14 +117,15 @@ def main(args):
         args.pixel_weight_l = args.pixel_weight_rgb
 
     rgbify = custom_transforms.toRGB()
-    trainDset = ImageFolder('train', args.data_path, transform)
-    trainLoader = DataLoader(dataset=trainDset, batch_size=args.batch_size, shuffle=True)
 
-    valDset = ImageFolder('val', args.data_path, transform)
-    indices = torch.randperm(len(valDset))
+    train_dataset = ImageFolder('train', args.data_path, transforms)
+    train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True)
+
+    val_dataset = ImageFolder('val', args.data_path, transforms)
+    indices = torch.randperm(len(val_dataset))
     val_display_size = args.batch_size
     val_display_sampler = SequentialSampler(indices[:val_display_size])
-    valLoader = DataLoader(dataset=valDset, batch_size=val_display_size, sampler=val_display_sampler)
+    val_loader = DataLoader(dataset=val_dataset, batch_size=val_display_size, sampler=val_display_sampler)
     # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
 
     feat_model = models.vgg19(pretrained=True)
@@ -132,7 +133,7 @@ def main(args):
 
     criterion_gan, criterion_pixel_l, criterion_pixel_ab, criterion_style, criterion_feat = get_criterions(args)
 
-    label = torch.FloatTensor(args.batch_size)
+
     real_label = 1
     fake_label = 0
 
@@ -147,11 +148,12 @@ def main(args):
         criterion_pixel_l.cuda()
         criterion_pixel_ab.cuda()
         criterion_feat.cuda()
-        
+
         input_stack = torch.FloatTensor().cuda()
         target_img = torch.FloatTensor().cuda()
         target_texture = torch.FloatTensor().cuda()
         segment = torch.FloatTensor().cuda()
+        label = torch.FloatTensor(args.batch_size).cuda()
 
         extract_content = FeatureExtractor(feat_model.features, [layers_map[args.content_layers]])
         extract_style = FeatureExtractor(feat_model.features,
@@ -172,7 +174,7 @@ def main(args):
         }
 
         for epoch in range(args.num_epoch):
-            for i, data in enumerate(trainLoader, 0):
+            for i, data in enumerate(train_loader):
 
                 # Detach is apparently just creating new Variable with cut off reference to previous node, so shouldn't effect the original
                 # But just in case, let's do G first so that detaching G during D update don't do anything weird
@@ -413,7 +415,7 @@ def main(args):
 
                 if i % args.visualize_every == 0:
                     imgs = []
-                    for ii, data in enumerate(valLoader, 0):
+                    for ii, data in enumerate(val_loader, 0):
                         img, skg, seg, txt = data  # LAB with negeative value
                         # this is in LAB value 0/100, -128/128 etc
                         img = custom_transforms.normalize_lab(img)
