@@ -28,13 +28,16 @@ def main(args):
 
     vis = visdom.Visdom(port=args.display_port)
 
-    Loss_g_graph = []
-    Loss_gd_graph = []
-    Loss_gf_graph = []
-    Loss_gpl_graph = []
-    Loss_gpab_graph = []
-    Loss_gs_graph = []
-    Loss_d_graph = []
+    loss_graph = {
+        "g": [],
+        "gd": [],
+        "gf": [],
+        "gpl": [],
+        "gpab": [],
+        "gs": [],
+        "d": [],
+    }
+
     # for rgb the change is to feed 3 channels to D instead of just 1. and feed 3 channels to vgg.
     # can leave pixel separate between r and gb for now. assume user use the same weights
     if args.color_space == 'lab':
@@ -303,13 +306,12 @@ def main(args):
 
                 optimizerG.step()
 
-                Loss_g_graph.append(err_G.data[0])
-                Loss_gpl_graph.append(err_pixel_l.data[0])
-                Loss_gpab_graph.append(err_pixel_ab.data[0])
-                Loss_gd_graph.append(err_gan.data[0])
-                Loss_gf_graph.append(err_feat.data[0])
-                Loss_gs_graph.append(err_style.data[0])
-                # plt.imshow(vis_image(inputv.data.double().cpu()))
+                loss_graph["g"].append(err_G.data[0])
+                loss_graph["gpl"].append(err_pixel_l.data[0])
+                loss_graph["gpab"].append(err_pixel_ab.data[0])
+                loss_graph["gd"].append(err_gan.data[0])
+                loss_graph["gf"].append(err_feat.data[0])
+                loss_graph["gs"].append(err_style.data[0])
 
                 print('G:', i, err_G.data[0])
 
@@ -368,10 +370,10 @@ def main(args):
                 if D_acc.data[0] < args.threshold_D_max:
                     # D_G_z1 = output.data.mean()
                     errD = errD_real + errD_fake
-                    Loss_d_graph.append(errD.data[0])
+                    loss_graph["d"].append(errD.data[0])
                     optimizerD.step()
                 else:
-                    Loss_d_graph.append(0)
+                    loss_graph["d"].append(0)
 
                 print('D:', 'real_acc', "%.2f" % real_acc.data[0], 'fake_acc', "%.2f" % fake_acc.data[0], 'D_acc',
                       D_acc.data[0])
@@ -503,13 +505,13 @@ def main(args):
                     # vis.image(inp_img,win='input',opts=dict(title='input'))
                     # vis.image(tar_img,win='target',opts=dict(title='target'))
                     # vis.image(segment_img,win='segment',opts=dict(title='segment'))
-                    vis.line(np.array(Loss_gs_graph), win='gs', opts=dict(title='G-Style Loss'))
-                    vis.line(np.array(Loss_g_graph), win='g', opts=dict(title='G Total Loss'))
-                    vis.line(np.array(Loss_gd_graph), win='gd', opts=dict(title='G-Discriminator Loss'))
-                    vis.line(np.array(Loss_gf_graph), win='gf', opts=dict(title='G-Feature Loss'))
-                    vis.line(np.array(Loss_gpl_graph), win='gpl', opts=dict(title='G-Pixel Loss-L'))
-                    vis.line(np.array(Loss_gpab_graph), win='gpab', opts=dict(title='G-Pixel Loss-AB'))
-                    vis.line(np.array(Loss_d_graph), win='d', opts=dict(title='D Loss'))
+                    vis.line(np.array(loss_graph["gs"]), win='gs', opts=dict(title='G-Style Loss'))
+                    vis.line(np.array(loss_graph["g"]), win='g', opts=dict(title='G Total Loss'))
+                    vis.line(np.array(loss_graph["gd"]), win='gd', opts=dict(title='G-Discriminator Loss'))
+                    vis.line(np.array(loss_graph["gf"]), win='gf', opts=dict(title='G-Feature Loss'))
+                    vis.line(np.array(loss_graph["gpl"]), win='gpl', opts=dict(title='G-Pixel Loss-L'))
+                    vis.line(np.array(loss_graph["gpab"]), win='gpab', opts=dict(title='G-Pixel Loss-AB'))
+                    vis.line(np.array(loss_graph["d"]), win='d', opts=dict(title='D Loss'))
 
 
 # all in one place funcs, need to organize these:
