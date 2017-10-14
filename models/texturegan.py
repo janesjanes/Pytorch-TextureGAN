@@ -122,11 +122,11 @@ class UpsamplingBlock(nn.Module):
         super(UpsamplingBlock, self).__init__()
 
         conv = nn.Conv2d
-        biup = nn.UpsamplingBilinear2d
+        biup = nn.Upsample
 
         block = nn.Sequential()
         block.add_module('conv_1', conv(input_nc, output_nc, kernel, stride, pad))
-        block.add_module('upsample_2', biup(scale_factor=2))
+        block.add_module('upsample_2', biup(scale_factor=2, mode='bilinear'))
 
         self.biup_block = block
 
