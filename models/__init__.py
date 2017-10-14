@@ -221,3 +221,35 @@ class NLayerDiscriminator(nn.Module):
             return nn.parallel.data_parallel(self.model, x, self.gpu_ids)
         else:
             return self.model(x)
+
+
+class GramMatrix(nn.Module):
+    def forward(self, input):
+        a, b, c, d = input.size()  # a=batch size(=1)
+        # b=number of feature maps
+        # (c,d)=dimensions of a f. map (N=c*d)
+
+        features = input.view(a, b, c * d)  # resize F_XL into \hat F_XL
+
+        G = torch.bmm(features, features.transpose(1, 2))  # compute the gram product
+
+        # normalize the values of the gram matrix
+        # by dividing by the number of element in each feature maps.
+        return G.div(b * c * d)
+
+
+class FeatureExtractor(nn.Module):
+    # Extract features from intermediate layers of a network
+
+    def __init__(self, submodule, extracted_layers):
+        super(FeatureExtractor, self).__init__()
+        self.submodule = submodule
+        self.extracted_layers = extracted_layers
+
+    def forward(self, x):
+        outputs = []
+        for name, module in self.submodule._modules.items():
+            x = module(x)
+            if name in self.extracted_layers:
+                outputs += [x]
+        return outputs + [x]

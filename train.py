@@ -1,27 +1,22 @@
 import torch
 import torch.nn as nn
 
-from models import scribbler, discriminator, texturegan, localDiscriminator
 import torch.optim as optim
 from torch.autograd import Variable
 
 import sys, os
-from skimage import color
-from PIL import Image
 import numpy as np
-import matplotlib.pyplot as plt
 import visdom
-from IPython.display import display
 import torchvision.models as models
-from dataloader import imfol
 from torch.utils.data.sampler import SequentialSampler
 
 from torch.utils.data import DataLoader
-from dataloader.imfol import ImageFolder, make_dataset
+from dataloader.imfol import ImageFolder
 
 from utils import transforms as custom_transforms
 from utils.visualize import vis_patch, vis_image
-from models import scribbler, discriminator, define_G, weights_init, scribbler_dilate_128
+from models import scribbler, discriminator, texturegan, define_G, weights_init, \
+    scribbler_dilate_128, GramMatrix, FeatureExtractor
 import argparser
 
 
@@ -147,7 +142,6 @@ def main(args):
         for epoch in range(args.num_epoch):
             for i, data in enumerate(trainLoader, 0):
 
-
                 #Detach is apparently just creating new Variable with cut off reference to previous node, so shouldn't effect the original 
                 #But just in case, let's do G first so that detaching G during D update don't do anything weird
                 ############################
@@ -199,9 +193,6 @@ def main(args):
                 txt=txt.cuda()
 
                 inp = inp.cuda()
-                
-                
-                
 
                 input_stack.resize_as_(inp.float()).copy_(inp)
                 target_img.resize_as_(img.float()).copy_(img)
@@ -217,10 +208,10 @@ def main(args):
 
                 outputG = netG(inputv)
 
-                outputl,outputa,outputb=torch.chunk((outputG),3,dim=1)
+                outputl,outputa,outputb=torch.chunk(outputG, 3, dim=1)
 
-                gtl,gta,gtb = torch.chunk(gtimgv,3,dim=1)
-                txtl,txta,txtb = torch.chunk(txtv,3,dim=1)
+                gtl, gta, gtb = torch.chunk(gtimgv, 3, dim=1)
+                txtl, txta, txtb = torch.chunk(txtv, 3, dim=1)
                 
                 outputab = torch.cat((outputa,outputb),1)
                 gtab = torch.cat((gta,gtb),1)
@@ -420,10 +411,10 @@ def main(args):
                         if not args.use_segmentation_patch:
                             seg.fill_(1)
                         if args.input_texture_patch == 'original_image':
-                            inp, texture_loc = gen_input_rand(img, skg, seg[:,0,:,:]*100,
+                            inp, texture_loc = gen_input_rand(img, skg, seg[:,0,:,:] * 100,
                                                          args.patch_size_min, args.patch_size_max,args.num_input_texture_patch)
                         elif args.input_texture_patch == 'dtd_texture':
-                            inp, texture_loc = gen_input_rand(txt, skg, seg[:,0,:,:]*100,
+                            inp, texture_loc = gen_input_rand(txt, skg, seg[:,0,:,:] * 100,
                                                          args.patch_size_min, args.patch_size_max,args.num_input_texture_patch)
                             
                             
@@ -600,37 +591,6 @@ def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
         results[i,:,:,:] = res
     return results, texture_info
 
-
-class GramMatrix(nn.Module):
-
-    def forward(self, input):
-        a, b, c, d = input.size()  # a=batch size(=1)
-        # b=number of feature maps
-        # (c,d)=dimensions of a f. map (N=c*d)
-
-        features = input.view(a , b, c * d)  # resize F_XL into \hat F_XL
-
-        G = torch.bmm(features, features.transpose(1,2))  # compute the gram product
-
-        # normalize the values of the gram matrix
-        # by dividing by the number of element in each feature maps.
-        return G.div( b * c * d)
-    
-class FeatureExtractor(nn.Module):
-    # Extract features from intermediate layers of a network
-
-    def __init__(self, submodule, extracted_layers):
-        super(FeatureExtractor,self).__init__()
-        self.submodule = submodule
-        self.extracted_layers=extracted_layers
-
-    def forward(self, x):
-        outputs = []
-        for name, module in self.submodule._modules.items():
-            x = module(x)
-            if name in self.extracted_layers:
-                outputs += [x]
-        return outputs + [x]
 
 def renormalize(img):
     """
