@@ -1,2 +1,2 @@
-# TextureGAN_pytorch
+# TextureGAN
 Pytorch re-implimentation of TextureGAN
