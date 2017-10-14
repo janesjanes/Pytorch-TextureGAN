@@ -103,7 +103,7 @@ def renormalize(img):
     return img
 
 
-def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graphs, args):
+def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graph, args):
     imgs = []
     for ii, data in enumerate(val_loader, 0):
         img, skg, seg, txt = data  # LAB with negeative value
@@ -205,13 +205,13 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
     # vis.image(inp_img,win='input',opts=dict(title='input'))
     # vis.image(tar_img,win='target',opts=dict(title='target'))
     # vis.image(segment_img,win='segment',opts=dict(title='segment'))
-    vis.line(np.array(loss_graphs["gs"]), win='gs', opts=dict(title='G-Style Loss'))
-    vis.line(np.array(loss_graphs["g"]), win='g', opts=dict(title='G Total Loss'))
-    vis.line(np.array(loss_graphs["gd"]), win='gd', opts=dict(title='G-Discriminator Loss'))
-    vis.line(np.array(loss_graphs["gf"]), win='gf', opts=dict(title='G-Feature Loss'))
-    vis.line(np.array(loss_graphs["gpl"]), win='gpl', opts=dict(title='G-Pixel Loss-L'))
-    vis.line(np.array(loss_graphs["gpab"]), win='gpab', opts=dict(title='G-Pixel Loss-AB'))
-    vis.line(np.array(loss_graphs["d"]), win='d', opts=dict(title='D Loss'))
+    vis.line(np.array(loss_graph["gs"]), win='gs', opts=dict(title='G-Style Loss'))
+    vis.line(np.array(loss_graph["g"]), win='g', opts=dict(title='G Total Loss'))
+    vis.line(np.array(loss_graph["gd"]), win='gd', opts=dict(title='G-Discriminator Loss'))
+    vis.line(np.array(loss_graph["gf"]), win='gf', opts=dict(title='G-Feature Loss'))
+    vis.line(np.array(loss_graph["gpl"]), win='gpl', opts=dict(title='G-Pixel Loss-L'))
+    vis.line(np.array(loss_graph["gpab"]), win='gpab', opts=dict(title='G-Pixel Loss-AB'))
+    vis.line(np.array(loss_graph["d"]), win='d', opts=dict(title='D Loss'))
 
 
 def train(model, train_loader, val_loader, input_stack, target_img, target_texture,
@@ -467,4 +467,4 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             save_network(netD, 'D', i, args.gpu, args.save_dir)
 
         if i % args.visualize_every == 0:
-            visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graphs, args)
+            visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graph, args)
