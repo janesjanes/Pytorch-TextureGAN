@@ -82,7 +82,7 @@ class ImageFolder(data.Dataset):
         txt = self.loader(txt_path)
         
         if self.transform is not None:
-            img,skg,seg,txt = self.transform([img,skg,seg,txt])
+            img, skg, seg, txt = self.transform([img, skg, seg, txt])
             
         return img, skg, seg, txt
 
