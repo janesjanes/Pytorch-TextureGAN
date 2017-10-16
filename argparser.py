@@ -55,6 +55,8 @@ def parse_arguments():
     parser.add_argument('--save_every', default=1000, type=int,
                         help='no. iteration to save the models')
 
+    parser.add_argument('--load_epoch', default=0, type=int,
+                        help="The epoch number for the model to load")
     parser.add_argument('--load', default=0, type=int,
                         help='load generator and discrminator from iteration n')
     parser.add_argument('--load_D', default=0, type=int,
