@@ -60,14 +60,12 @@ def get_models(args):
     if args.load == -1:
         netG.apply(weights_init)
     else:
-        load_network(netG, 'G', args.load, args.load_dir)
-        print('Loaded G from itr:' + str(args.load))
+        load_network(netG, 'G', args.load_epoch, args.load, args)
 
     if args.load_D == -1:
         netD.apply(weights_init)
     else:
-        load_network(netD, 'D', args.load_D, args.load_dir)
-        print('Loaded D from itr:' + str(args.load_D))
+        load_network(netD, 'D', args.load_epoch, args.load_D, args)
 
     return netG, netD
 
@@ -170,9 +168,9 @@ def main(args):
             "optimizerG": optimizerG
         }
 
-        for epoch in range(args.num_epoch):
+        for epoch in range(args.load_epoch, args.num_epoch):
             train(model, train_loader, val_loader, input_stack, target_img, target_texture,
-                  segment, label, extract_content, extract_style, loss_graph, vis, args)
+                  segment, label, extract_content, extract_style, loss_graph, vis, epoch, args)
 
 
 if __name__ == '__main__':

@@ -215,7 +215,7 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
 
 
 def train(model, train_loader, val_loader, input_stack, target_img, target_texture,
-          segment, label, extract_content, extract_style, loss_graph, vis, args):
+          segment, label, extract_content, extract_style, loss_graph, vis, epoch, args):
 
     netG = model["netG"]
     netD = model["netD"]
@@ -231,6 +231,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
     for i, data in enumerate(train_loader):
 
+        print("Epoch: {0}       Iteration: {1}".format(epoch, i))
         # Detach is apparently just creating new Variable with cut off reference to previous node, so shouldn't effect the original
         # But just in case, let's do G first so that detaching G during D update don't do anything weird
         ############################
@@ -398,7 +399,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         loss_graph["gf"].append(err_feat.data[0])
         loss_graph["gs"].append(err_style.data[0])
 
-        print('G:', i, err_G.data[0])
+        print('G:', err_G.data[0])
 
         ############################
         # (2) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -460,11 +461,11 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         else:
             loss_graph["d"].append(0)
 
-        print('D:', 'real_acc', "%.2f" % real_acc.data[0], 'fake_acc', "%.2f" % fake_acc.data[0], 'D_acc',
-              D_acc.data[0])
+        print('D:', 'real_acc', "%.2f" % real_acc.data[0], 'fake_acc', "%.2f" % fake_acc.data[0], 'D_acc', D_acc.data[0])
+
         if i % args.save_every == 0:
-            save_network(netG, 'G', i, args.gpu, args.save_dir)
-            save_network(netD, 'D', i, args.gpu, args.save_dir)
+            save_network(netG, 'G', epoch, i, args)
+            save_network(netD, 'D', epoch, i, args)
 
         if i % args.visualize_every == 0:
             visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graph, args)
