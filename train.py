@@ -314,7 +314,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             txtlll = torch.cat((txtl, txtl, txtl), 1)
         elif args.color_space == 'rgb':
             outputlll = outputG  # (torch.cat((outputl,outputl,outputl),1))
-            gtlll = gtv  # (torch.cat((targetl,targetl,targetl),1))
+            gtlll = gtimgv  # (torch.cat((targetl,targetl,targetl),1))
             txtlll = txtv
         if args.loss_texture == 'original_image':
             targetl = gtl
@@ -411,7 +411,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         if args.color_space == 'lab':
             outputD = netD(targetl)
         elif args.color_space == 'rgb':
-            outputD = netD(gtv)
+            outputD = netD(gtimgv)
 
         label.resize_(outputD.data.size())
         labelv = Variable(label.fill_(real_label))
