@@ -77,8 +77,6 @@ def parse_arguments():
 
     parser.add_argument('--num_input_texture_patch', default=2,type=int)
 
-    parser.add_argument('--local_texture_size', default=50, type=int,
-                        help='use local texture loss instead of global, set -1 to use global')
     parser.add_argument('--color_space', default='lab', type=str, choices=['lab', 'rgb'],
                         help='lab|rgb')
 
@@ -97,9 +95,12 @@ def parse_arguments():
                         choices=['original_image', 'dtd_texture'],
                         help='whether or not to inject noise into the network')
     
-    parser.add_argument('--loss_texture', default='texture_mask', type=str,
-                        choices=['original_image', 'texture_mask','texture_patch'],
-                        help='whether or not to inject noise into the network')
+    parser.add_argument('--loss_texture', default='dtd_texture', type=str,
+                        choices=['original_image', 'dtd_texture'],
+                        help='where is the texture loss come from')
+    
+    parser.add_argument('--local_texture_size', default=50, type=int,
+                        help='use local texture loss instead of global, set -1 to use global')
     ############################################################################
     ############################################################################
     ############TODO: TO ADD #################################################################

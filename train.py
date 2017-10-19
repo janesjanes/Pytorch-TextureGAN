@@ -335,8 +335,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
             # print seg
 
-        ##################Pixel L Loss############################
-        err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl, targetl)
+        
 
         ##################Pixel ab Loss############################
         err_pixel_ab = args.pixel_weight_ab * criterion_pixel_ab(outputab, targetab)
@@ -353,6 +352,11 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         if args.local_texture_size == -1:  # global
             output_feat_ = extract_style(outputlll)
             target_feat_ = extract_style(targetlll)
+            
+            ##################Pixel L Loss############################
+             
+            err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl, targetl)
+            
         else:
             patchsize = args.local_texture_size
             x = int(rand_between(patchsize, args.image_size - patchsize))
@@ -362,6 +366,10 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             gt_texture_patch = targetlll[:, :, x:(x + patchsize), y:(y + patchsize)]
             output_feat_ = extract_style(texture_patch)
             target_feat_ = extract_style(gt_texture_patch)
+            
+            ##################Pixel L Loss############################
+            
+            err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl[:, :, x:(x + patchsize), y:(y + patchsize)], targetl[:, :, x:(x + patchsize), y:(y + patchsize)])
 
         gram = GramMatrix()
 
