@@ -7,6 +7,7 @@ from utils.visualize import vis_image, vis_patch
 import time
 
 # all in one place funcs, need to organize these:
+# all in one place funcs, need to organize these:
 def rand_between(a, b):
     return a + torch.round(torch.rand(1) * (b - a))[0]
 
@@ -33,7 +34,13 @@ def gen_input(img, skg, ini_texture, ini_mask, xcenter=64, ycenter=64, size=40):
 
     return torch.cat((input_sketch.cpu().float(), input_texture.float(), input_mask), 0)
 
-
+def get_coor(index, size):
+    index = int(index)
+    #get original coordinate from flatten index for 3 dim size
+    w,h = size
+    #print index,w,h,(index%(w*h))
+    #return (index/(w*h),(index%(w*h))/h, ((index%(w*h))%h))
+    return ((index%(w*h))/h, ((index%(w*h))%h))
 
 def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
     # generate input skg with random patch from img
@@ -225,28 +232,25 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
     vis.line(np.array(loss_graph["gpl"]), win='gpl', opts=dict(title='G-Pixel Loss-L'))
     vis.line(np.array(loss_graph["gpab"]), win='gpab', opts=dict(title='G-Pixel Loss-AB'))
     vis.line(np.array(loss_graph["d"]), win='d', opts=dict(title='D Loss'))
-
-def get_coor(index, size):
-    index = int(index)
-    #get original coordinate from flatten index for 3 dim size
-    w,h = size
-    #print index,w,h,(index%(w*h))
-    #return (index/(w*h),(index%(w*h))/h, ((index%(w*h))%h))
-    return ((index%(w*h))/h, ((index%(w*h))%h))
-
+    vis.line(np.array(loss_graph["dl"]), win='dl', opts=dict(title='D Local Loss'))
+    vis.line(np.array(loss_graph["gdl"]), win='gdl', opts=dict(title='G D Local Loss'))
+    
 def train(model, train_loader, val_loader, input_stack, target_img, target_texture,
-          segment, label, extract_content, extract_style, loss_graph, vis, epoch, args):
+          segment, label,label_local, extract_content, extract_style, loss_graph, vis, epoch, args):
 
     netG = model["netG"]
     netD = model["netD"]
+    netD_local = model["netD_local"]
     criterion_gan = model["criterion_gan"]
     criterion_pixel_l = model["criterion_pixel_l"]
     criterion_pixel_ab = model["criterion_pixel_ab"]
     criterion_feat = model["criterion_feat"]
     criterion_style = model["criterion_style"]
+    criterion_texturegan = model["criterion_texturegan"]
     real_label = model["real_label"]
     fake_label = model["fake_label"]
     optimizerD = model["optimizerD"]
+    optimizerD_local = model["optimizerD_local"]
     optimizerG = model["optimizerG"]
 
     for i, data in enumerate(train_loader):
@@ -310,6 +314,9 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         target_img.resize_as_(img.float()).copy_(img)
         segment.resize_as_(seg.float()).copy_(seg)
         target_texture.resize_as_(txt.float()).copy_(txt)
+        
+        inv_idx = torch.arange(target_texture.size(0)-1, -1, -1).long().cuda()
+        target_texture_inv = target_texture.index_select(0, inv_idx)
 
         assert torch.max(seg) <= 1
 
@@ -317,13 +324,15 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         gtimgv = Variable(target_img)
         segv = Variable(segment)
         txtv = Variable(target_texture)
-
+        txtv_inv = Variable(target_texture_inv)
+        
         outputG = netG(inputv)
 
         outputl, outputa, outputb = torch.chunk(outputG, 3, dim=1)
 
         gtl, gta, gtb = torch.chunk(gtimgv, 3, dim=1)
         txtl, txta, txtb = torch.chunk(txtv, 3, dim=1)
+        txtl_inv,txta_inv,txtb_inv = torch.chunk(txtv_inv,3,dim=1)
 
         outputab = torch.cat((outputa, outputb), 1)
         gtab = torch.cat((gta, gtb), 1)
@@ -354,7 +363,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             targetlll = txtlll
 
             # print seg
-
+        #return txtl
         ##################Pixel ab Loss############################
         err_pixel_ab = args.pixel_weight_ab * criterion_pixel_ab(outputab, targetab)
 
@@ -380,6 +389,9 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             
             texture_patch = outputlll[:, :, 0:patchsize, 0:patchsize].clone()
             gt_texture_patch = targetlll[:, :, 0:patchsize, 0:patchsize].clone()
+            
+            texture_patchl = outputl[:, :, 0:patchsize, 0:patchsize].clone()
+            gt_texture_patchl = targetl[:, :, 0:patchsize, 0:patchsize].clone()
 
             for i_bs in range(batch_size):
                 #TODO remoe this when we have erode
@@ -403,6 +415,9 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
                 
                 texture_patch[i_bs,:,:,:] = outputlll[i_bs, :, x:(x + patchsize), y:(y + patchsize)]
                 gt_texture_patch[i_bs,:,:,:] = targetlll[i_bs, :, x:(x + patchsize), y:(y + patchsize)]
+                
+                texture_patchl[i_bs,:,:,:] = outputl[i_bs, :, x:(x + patchsize), y:(y + patchsize)]
+                gt_texture_patchl[i_bs,:,:,:] = targetl[i_bs, :, x:(x + patchsize), y:(y + patchsize)]
             #TODO check this is inside the segmentation
             #x = int(rand_between(patchsize, args.image_size - patchsize))
             #y = int(rand_between(patchsize, args.image_size - patchsize))
@@ -429,6 +444,8 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         ################## D Loss ############################
         netD.zero_grad()
         label_ = Variable(label)
+        
+        #return outputl, txtl
         if args.color_space == 'lab':
             outputD = netD(outputl)
         elif args.color_space == 'rgb':
@@ -439,10 +456,29 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         labelv = Variable(label.fill_(real_label))
 
         err_gan = args.discriminator_weight * criterion_gan(outputD, labelv)
+        
+        ################## D Local Loss ############################
+        netD_local.zero_grad()
+        label_ = Variable(label)
+        
+        if args.color_space == 'lab':
+            #return texture_patchl, gt_texture_patchl
+            
+            outputD_local = netD_local(torch.cat((texture_patchl, gt_texture_patchl),1))
+        elif args.color_space == 'rgb':
+            outputD = netD(outputG)
+        # D_G_z2 = outputD.data.mean()
 
+        label_local.resize_(outputD_local.data.size())
+        labelv_local = Variable(label_local.fill_(real_label))
+
+        err_texturegan = args.discriminator_local_weight * criterion_texturegan(outputD_local, labelv_local)
+        
         ####################################
-        err_G = err_pixel_l + err_pixel_ab + err_gan + err_feat + err_style
-        err_G.backward()
+        err_G = err_pixel_l + err_pixel_ab + err_gan + err_feat + err_style +err_texturegan
+        #return err_pixel_l , err_pixel_ab ,err_gan , err_feat ,err_style ,err_texturegan
+        #err_G = err_pixel_l+err_texturegan
+        err_G.backward(retain_variables=True)
 
         optimizerG.step()
 
@@ -452,6 +488,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         loss_graph["gd"].append(err_gan.data[0])
         loss_graph["gf"].append(err_feat.data[0])
         loss_graph["gs"].append(err_style.data[0])
+        loss_graph["gdl"].append(err_texturegan.data[0])
 
         print('G:', err_G.data[0])
 
@@ -459,7 +496,8 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         # (2) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
         ###########################
         # train with real
-
+        
+        
         netD.zero_grad()
 
         labelv = Variable(label)
@@ -517,9 +555,146 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
         print('D:', 'real_acc', "%.2f" % real_acc.data[0], 'fake_acc', "%.2f" % fake_acc.data[0], 'D_acc', D_acc.data[0])
 
+        ############################
+        # (2) Update D local network: maximize log(D(x)) + log(1 - D(G(z)))
+        ###########################
+        # train with real
+        patchsize = args.local_texture_size
+        x1 = int(rand_between(patchsize, args.image_size - patchsize))
+        y1 = int(rand_between(patchsize, args.image_size - patchsize))
+        
+        x2 = int(rand_between(patchsize, args.image_size - patchsize))
+        y2 = int(rand_between(patchsize, args.image_size - patchsize))
+
+        netD_local.zero_grad()
+
+        labelv = Variable(label)
+        if args.color_space == 'lab':
+            outputD_local = netD_local(torch.cat((txtl[:, :, x1:(x1 + patchsize), y1:(y1 + patchsize)],txtl[:, :, x2:(x2 + patchsize), y2:(y2 + patchsize)]),1))#netD_local(targetl)
+        elif args.color_space == 'rgb':
+            outputD = netD(gtimgv)
+
+        label.resize_(outputD_local.data.size())
+        labelv = Variable(label.fill_(real_label))
+
+        errD_real_local = criterion_texturegan(outputD_local, labelv)
+        errD_real_local.backward(retain_variables=True)
+
+        score = Variable(torch.ones(batch_size))
+        _, cd, wd, hd = outputD_local.size()
+        D_output_size = cd * wd * hd
+
+        clamped_output_D = outputD_local.clamp(0, 1)
+        clamped_output_D = torch.round(clamped_output_D)
+        for acc_i in range(batch_size):
+            score[acc_i] = torch.sum(clamped_output_D[acc_i]) / D_output_size
+
+        realreal_acc = torch.mean(score)
+        
+        x1 = int(rand_between(patchsize, args.image_size - patchsize))
+        y1 = int(rand_between(patchsize, args.image_size - patchsize))
+        
+        x2 = int(rand_between(patchsize, args.image_size - patchsize))
+        y2 = int(rand_between(patchsize, args.image_size - patchsize))
+
+        labelv = Variable(label)
+        if args.color_space == 'lab':
+            outputD_local = netD_local(torch.cat((txtl[:, :, x1:(x1 + patchsize), y1:(y1 + patchsize)],txtl[:, :, x2:(x2 + patchsize), y2:(y2 + patchsize)]),1))#netD_local(targetl)
+
+        elif args.color_space == 'rgb':
+            outputD = netD(gtimgv)
+
+        label.resize_(outputD_local.data.size())
+        labelv = Variable(label.fill_(real_label))
+
+        errD_real_local = criterion_texturegan(outputD_local, labelv)
+        errD_real_local.backward()
+
+        score = Variable(torch.ones(batch_size))
+        _, cd, wd, hd = outputD_local.size()
+        D_output_size = cd * wd * hd
+
+        clamped_output_D = outputD_local.clamp(0, 1)
+        clamped_output_D = torch.round(clamped_output_D)
+        for acc_i in range(batch_size):
+            score[acc_i] = torch.sum(clamped_output_D[acc_i]) / D_output_size
+
+        realreal_acc = realreal_acc+torch.mean(score)
+        realreal_acc = realreal_acc/2
+
+        x1 = int(rand_between(patchsize, args.image_size - patchsize))
+        y1 = int(rand_between(patchsize, args.image_size - patchsize))
+        
+        x2 = int(rand_between(patchsize, args.image_size - patchsize))
+        y2 = int(rand_between(patchsize, args.image_size - patchsize))
+        
+        if args.color_space == 'lab':
+            outputD_local = netD_local(torch.cat((txtl[:, :, x1:(x1 + patchsize), y1:(y1 + patchsize)],txtl_inv[:, :, x2:(x2 + patchsize), y2:(y2 + patchsize)]),1))#outputD = netD(outputl.detach())
+        elif args.color_space == 'rgb':
+            outputD = netD(outputG.detach())
+        label.resize_(outputD_local.data.size())
+        labelv = Variable(label.fill_(fake_label))
+
+        errD_fake_local = criterion_gan(outputD_local, labelv)
+        errD_fake_local.backward(retain_variables=True)
+        score = Variable(torch.ones(batch_size))
+        _, cd, wd, hd = outputD_local.size()
+        D_output_size = cd * wd * hd
+
+        clamped_output_D = outputD_local.clamp(0, 1)
+        clamped_output_D = torch.round(clamped_output_D)
+        for acc_i in range(batch_size):
+            score[acc_i] = torch.sum(clamped_output_D[acc_i]) / D_output_size
+
+        fakereal_acc = torch.mean(1 - score)
+        
+        x1 = int(rand_between(patchsize, args.image_size - patchsize))
+        y1 = int(rand_between(patchsize, args.image_size - patchsize))
+        
+        x2 = int(rand_between(patchsize, args.image_size - patchsize))
+        y2 = int(rand_between(patchsize, args.image_size - patchsize))
+         
+        
+        if args.color_space == 'lab':
+            #outputD_local = netD_local(torch.cat((txtl[:, :, x1:(x1 + patchsize), y1:(y1 + patchsize)],outputl[:, :, x2:(x2 + patchsize), y2:(y2 + patchsize)]),1))#outputD = netD(outputl.detach())
+            outputD_local = netD_local(torch.cat((texture_patchl, gt_texture_patchl),1))
+        elif args.color_space == 'rgb':
+            outputD = netD(outputG.detach())
+        label.resize_(outputD_local.data.size())
+        labelv = Variable(label.fill_(fake_label))
+
+        errD_fake_local = criterion_gan(outputD_local, labelv)
+        errD_fake_local.backward()
+        score = Variable(torch.ones(batch_size))
+        _, cd, wd, hd = outputD_local.size()
+        D_output_size = cd * wd * hd
+
+        clamped_output_D = outputD_local.clamp(0, 1)
+        clamped_output_D = torch.round(clamped_output_D)
+        for acc_i in range(batch_size):
+            score[acc_i] = torch.sum(clamped_output_D[acc_i]) / D_output_size
+
+        fakefake_acc = torch.mean(1 - score)
+
+        D_acc = (realreal_acc + fakereal_acc+fakefake_acc) / 3
+
+        if D_acc.data[0] < args.threshold_D_max:
+            # D_G_z1 = output.data.mean()
+            errD_local = errD_real_local + errD_fake_local
+            loss_graph["dl"].append(errD_local.data[0])
+            optimizerD_local.step()
+        else:
+            loss_graph["dl"].append(0)
+
+        print('D local:', 'real real_acc', "%.2f" % realreal_acc.data[0], 'fake fake_acc', "%.2f" % fakefake_acc.data[0], 'fake real_acc', "%.2f" % fakereal_acc.data[0], 'D_acc', D_acc.data[0])
+
+        
         if i % args.save_every == 0:
             save_network(netG, 'G', epoch, i, args)
             save_network(netD, 'D', epoch, i, args)
+            save_network(netD_local, 'D_local', epoch, i, args)
 
         if i % args.visualize_every == 0:
             visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graph, args)
+            
+        
