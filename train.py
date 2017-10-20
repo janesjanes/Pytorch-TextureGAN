@@ -464,7 +464,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
         labelv = Variable(label)
         if args.color_space == 'lab':
-            outputD = netD(targetl)
+            outputD = netD(gtl)
         elif args.color_space == 'rgb':
             outputD = netD(gtimgv)
 
