@@ -415,7 +415,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             
             ##################Pixel L Loss############################
             
-            err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl[:, :, x:(x + patchsize), y:(y + patchsize)], targetl[:, :, x:(x + patchsize), y:(y + patchsize)])
+            err_pixel_l = args.pixel_weight_l * criterion_pixel_l(texture_patchl, gt_texture_patchl)
 
         gram = GramMatrix()
 
