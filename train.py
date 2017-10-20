@@ -4,7 +4,7 @@ import numpy as np
 from utils import transforms as custom_transforms
 from models import save_network, GramMatrix
 from utils.visualize import vis_image, vis_patch
-
+import time
 
 # all in one place funcs, need to organize these:
 def rand_between(a, b):
@@ -34,6 +34,7 @@ def gen_input(img, skg, ini_texture, ini_mask, xcenter=64, ycenter=64, size=40):
     return torch.cat((input_sketch.cpu().float(), input_texture.float(), input_mask), 0)
 
 
+
 def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
     # generate input skg with random patch from img
     # input img,skg [bsx3xwxh], xcenter,ycenter, size
@@ -44,7 +45,7 @@ def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
     texture_info = []
 
     # text_info.append([xcenter,ycenter,crop_size])
-    seg = seg / torch.max(seg)
+    seg = seg / torch.max(seg) #make sure it's 0/1
     counter = 0
     for i in range(bs):
         counter = 0
@@ -53,22 +54,34 @@ def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
         temp_info = []
         for j in range(num_patch):
             crop_size = int(rand_between(size_min, size_max))
-            xcenter = int(rand_between(crop_size / 2, w - crop_size / 2))
-            ycenter = int(rand_between(crop_size / 2, h - crop_size / 2))
+            
+            seg_index_size = seg[i,:,:].view(-1).size()[0]
+            seg_index = torch.arange(0,seg_index_size)
+            seg_one = seg_index[seg[i,:,:].view(-1)==1]
+    
+            seg_select_index = int(rand_between(0,seg_one.view(-1).size()[0]-1))
+        
+            #for i in range of the batch size
+
+            x,y = get_coor(seg_one[seg_select_index],seg[i,:,:].size())
+            
+            
+            xcenter = x#int(rand_between(crop_size / 2, w - crop_size / 2))
+            ycenter = y#int(rand_between(crop_size / 2, h - crop_size / 2))
             xstart = max(int(xcenter - crop_size / 2), 0)
             ystart = max(int(ycenter - crop_size / 2), 0)
             xend = min(int(xcenter + crop_size / 2), w)
             yend = min(int(ycenter + crop_size / 2), h)
             patch = seg[i, xstart:xend, ystart:yend]
             sizem = torch.ones(patch.size())
-            while torch.sum(patch) >= 0.8 * torch.sum(sizem):
-                if counter > MAX_COUNT:
-                    break
-                crop_size = int(rand_between(size_min, size_max))
-                xcenter = int(rand_between(crop_size / 2, w - crop_size / 2))
-                ycenter = int(rand_between(crop_size / 2, h - crop_size / 2))
+            #while torch.sum(patch) >= 0.8 * torch.sum(sizem):
+            ##    if counter > MAX_COUNT:
+            #        break
+            #    crop_size = int(rand_between(size_min, size_max))
+            #    xcenter = int(rand_between(crop_size / 2, w - crop_size / 2))
+            #    ycenter = int(rand_between(crop_size / 2, h - crop_size / 2))
 
-                counter = counter + 1
+            #    counter = counter + 1
 
             temp_info.append([xcenter, ycenter, crop_size])
             res = gen_input(img[i], skg[i], ini_texture, ini_mask, xcenter, ycenter, crop_size)
@@ -213,6 +226,13 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
     vis.line(np.array(loss_graph["gpab"]), win='gpab', opts=dict(title='G-Pixel Loss-AB'))
     vis.line(np.array(loss_graph["d"]), win='d', opts=dict(title='D Loss'))
 
+def get_coor(index, size):
+    index = int(index)
+    #get original coordinate from flatten index for 3 dim size
+    w,h = size
+    #print index,w,h,(index%(w*h))
+    #return (index/(w*h),(index%(w*h))/h, ((index%(w*h))%h))
+    return ((index%(w*h))/h, ((index%(w*h))%h))
 
 def train(model, train_loader, val_loader, input_stack, target_img, target_texture,
           segment, label, extract_content, extract_style, loss_graph, vis, epoch, args):
@@ -257,7 +277,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
         if not args.use_segmentation_patch:
             seg.fill_(1)
-
+         
         bs, w, h = seg.size()
 
         seg = seg.view(bs, 1, w, h)
@@ -269,14 +289,14 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         temp[:, 2, :, :] = 0  # torch.ones(seg[:,2,:,:].size())*(1-seg[:,2,:,:]).float()
 
         txt = txt.float() * seg.float() + temp
-
+        #tic = time.time()
         if args.input_texture_patch == 'original_image':
             inp, _ = gen_input_rand(img, skg, seg[:, 0, :, :], args.patch_size_min, args.patch_size_max,
                                     args.num_input_texture_patch)
         elif args.input_texture_patch == 'dtd_texture':
             inp, _ = gen_input_rand(txt, skg, seg[:, 0, :, :], args.patch_size_min, args.patch_size_max,
                                     args.num_input_texture_patch)
-
+        #print(time.time()-tic)
         batch_size, _, _, _ = img.size()
 
         img = img.cuda()
@@ -335,8 +355,6 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
             # print seg
 
-        
-
         ##################Pixel ab Loss############################
         err_pixel_ab = args.pixel_weight_ab * criterion_pixel_ab(outputab, targetab)
 
@@ -359,11 +377,39 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             
         else:
             patchsize = args.local_texture_size
-            x = int(rand_between(patchsize, args.image_size - patchsize))
-            y = int(rand_between(patchsize, args.image_size - patchsize))
+            
+            texture_patch = outputlll[:, :, 0:patchsize, 0:patchsize].clone()
+            gt_texture_patch = targetlll[:, :, 0:patchsize, 0:patchsize].clone()
 
-            texture_patch = outputlll[:, :, x:(x + patchsize), y:(y + patchsize)]
-            gt_texture_patch = targetlll[:, :, x:(x + patchsize), y:(y + patchsize)]
+            for i_bs in range(batch_size):
+                #TODO remoe this when we have erode
+                x = -1
+                y=-1
+                while x < 0 or y< 0 or x+patchsize>args.image_size or y+patchsize>args.image_size:
+                    i_bs = int(i_bs)
+                    seg_index_size = seg[i_bs,0,:,:].view(-1).size()[0]
+                    seg_index = torch.arange(0,seg_index_size).cuda()
+                    seg_one = seg_index[seg[i_bs,0,:,:].view(-1)==1]
+
+                    seg_select_index = int(rand_between(0,seg_one.view(-1).size()[0]-1))
+
+                #for i in range of the batch size
+
+                    x,y = get_coor(seg_one[seg_select_index],seg[i_bs,0,:,:].size())
+                    x = (int)(x-patchsize/2)
+                    y = (int)(y-patchsize/2)
+
+                #print x,y,patchsize
+                
+                texture_patch[i_bs,:,:,:] = outputlll[i_bs, :, x:(x + patchsize), y:(y + patchsize)]
+                gt_texture_patch[i_bs,:,:,:] = targetlll[i_bs, :, x:(x + patchsize), y:(y + patchsize)]
+            #TODO check this is inside the segmentation
+            #x = int(rand_between(patchsize, args.image_size - patchsize))
+            #y = int(rand_between(patchsize, args.image_size - patchsize))
+            
+            #temp_patch = 
+            #texture_patch = outputlll[:, :, x:(x + patchsize), y:(y + patchsize)]
+            #gt_texture_patch = targetlll[:, :, x:(x + patchsize), y:(y + patchsize)]
             output_feat_ = extract_style(texture_patch)
             target_feat_ = extract_style(gt_texture_patch)
             

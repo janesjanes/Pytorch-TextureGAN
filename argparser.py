@@ -101,6 +101,9 @@ def parse_arguments():
     
     parser.add_argument('--local_texture_size', default=50, type=int,
                         help='use local texture loss instead of global, set -1 to use global')
+    
+    parser.add_argument('--texture_discrminator_loss', default=True, type=bool,
+                        help='adding discrminator for texture')
     ############################################################################
     ############################################################################
     ############TODO: TO ADD #################################################################
