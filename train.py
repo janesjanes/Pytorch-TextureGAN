@@ -168,6 +168,8 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
                                 args.color_space)
         tar_img = vis_image(custom_transforms.denormalize_lab(img.cpu()),
                             args.color_space)
+        tar_txt = vis_image(custom_transforms.denormalize_lab(txt.cpu()),
+                            args.color_space)
     elif args.color_space == 'rgb':
 
         out_img = vis_image(custom_transforms.denormalize_rgb(outputG.data.double().cpu()),
@@ -187,13 +189,14 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
 
     tar_img = [x * 255 for x in tar_img]  # (tar_img*255)#.astype('uint8')
     # tar_img=np.transpose(tar_img,(2,0,1))
-
+    tar_txt = [x * 255 for x in tar_txt] 
     segment_img = vis_image((seg.cpu()), args.color_space)
     segment_img = [x * 255 for x in segment_img]  # segment_img=(segment_img*255)#.astype('uint8')
     # segment_img=np.transpose(segment_img,(2,0,1))
 
     for i_ in range(len(out_img)):
-        imgs.append(segment_img[i_])
+        #imgs.append(segment_img[i_])
+        imgs.append(tar_txt[i_])
         imgs.append(inp_img[i_])
         imgs.append(out_img[i_])
         imgs.append(tar_img[i_])
@@ -336,7 +339,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             # print seg
 
         ##################Pixel L Loss############################
-        err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl, targetl)
+        #err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl, targetl)
 
         ##################Pixel ab Loss############################
         err_pixel_ab = args.pixel_weight_ab * criterion_pixel_ab(outputab, targetab)
@@ -353,6 +356,8 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         if args.local_texture_size == -1:  # global
             output_feat_ = extract_style(outputlll)
             target_feat_ = extract_style(targetlll)
+            # global pixel loss
+            err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl, targetl)
         else:
             patchsize = args.local_texture_size
             x = int(rand_between(patchsize, args.image_size - patchsize))
@@ -362,6 +367,8 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             gt_texture_patch = targetlll[:, :, x:(x + patchsize), y:(y + patchsize)]
             output_feat_ = extract_style(texture_patch)
             target_feat_ = extract_style(gt_texture_patch)
+            # local pixel loss
+            err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl[:, :, x:(x + patchsize), y:(y + patchsize)], targetl[:, :, x:(x + patchsize), y:(y + patchsize)])
 
         gram = GramMatrix()
 
@@ -410,7 +417,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
         labelv = Variable(label)
         if args.color_space == 'lab':
-            outputD = netD(targetl)
+            outputD = netD(gtl)
         elif args.color_space == 'rgb':
             outputD = netD(gtimgv)
 

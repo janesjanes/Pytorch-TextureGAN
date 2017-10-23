@@ -38,9 +38,25 @@ def load_network(model, network_label, epoch, iteration, args):
 
     model_save_dir = osp.join(args.save_dir, dataset)
     save_path = osp.join(model_save_dir, save_filename)
-
+    
     model_state = torch.load(save_path)
-    model.load_state_dict(model_state["state_dict"])
+    
+    if "state_dict" in model_state:
+        model.load_state_dict(model_state["state_dict"])
+    else:
+        model.load_state_dict(model_state)
+
+        model_state = {
+            'state_dict': model.cpu().state_dict(),
+            'epoch': epoch,
+            'iteration': iteration,
+            'model': args.model,
+            'color_space': args.color_space,
+            'batch_size': args.batch_size,
+            'dataset': dataset,
+            'image_size': args.image_size
+        }
+    
     model.cuda(device_id=args.gpu)
 
     print('Loaded {0} from epoch: {1} itr: {2}'.format(network_label, epoch, args.load))
