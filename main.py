@@ -54,6 +54,7 @@ def get_models(args):
 
     if args.color_space == 'lab':
         netD = discriminator.Discriminator(1, 32, sigmoid_flag)
+        netD_local = discriminator.Discriminator(2, 32, sigmoid_flag)
     elif args.color_space == 'rgb':
         netD = discriminator.Discriminator(3, 32, sigmoid_flag)
 
@@ -67,7 +68,7 @@ def get_models(args):
     else:
         load_network(netD, 'D', args.load_epoch, args.load_D, args)
 
-    return netG, netD
+    return netG, netD, netD_local
 
 
 def get_criterions(args):
@@ -84,11 +85,13 @@ def get_criterions(args):
     criterion_pixel_ab = nn.L1Loss()
     criterion_style = nn.L1Loss()
     criterion_feat = nn.L1Loss()
+    criterion_texturegan = nn.L1Loss()
 
-    return criterion_gan, criterion_pixel_l, criterion_pixel_ab, criterion_style, criterion_feat
+    return criterion_gan, criterion_pixel_l, criterion_pixel_ab, criterion_style, criterion_feat, criterion_texturegan
 
 
 def main(args):
+    #with torch.cuda.device(args.gpu):
     layers_map = {'relu4_2': '22', 'relu2_2': '8', 'relu3_2': '13'}
 
     vis = visdom.Visdom(port=args.display_port)
@@ -101,6 +104,8 @@ def main(args):
         "gpab": [],
         "gs": [],
         "d": [],
+        "gdl": [],
+        "dl": [],
     }
 
     # for rgb the change is to feed 3 channels to D instead of just 1. and feed 3 channels to vgg.
@@ -124,9 +129,9 @@ def main(args):
     # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
 
     feat_model = models.vgg19(pretrained=True)
-    netG, netD = get_models(args)
+    netG, netD, netD_local = get_models(args)
 
-    criterion_gan, criterion_pixel_l, criterion_pixel_ab, criterion_style, criterion_feat = get_criterions(args)
+    criterion_gan, criterion_pixel_l, criterion_pixel_ab, criterion_style, criterion_feat,criterion_texturegan = get_criterions(args)
 
 
     real_label = 1
@@ -134,22 +139,25 @@ def main(args):
 
     optimizerD = optim.Adam(netD.parameters(), lr=args.learning_rate_D, betas=(0.5, 0.999))
     optimizerG = optim.Adam(netG.parameters(), lr=args.learning_rate, betas=(0.5, 0.999))
+    optimizerD_local = optim.Adam(netD_local.parameters(), lr=args.learning_rate_D_local, betas=(0.5, 0.999))
 
     with torch.cuda.device(args.gpu):
         netG.cuda()
         netD.cuda()
+        netD_local.cuda()
         feat_model.cuda()
         criterion_gan.cuda()
         criterion_pixel_l.cuda()
         criterion_pixel_ab.cuda()
         criterion_feat.cuda()
+        criterion_texturegan.cuda()
 
         input_stack = torch.FloatTensor().cuda()
         target_img = torch.FloatTensor().cuda()
         target_texture = torch.FloatTensor().cuda()
         segment = torch.FloatTensor().cuda()
         label = torch.FloatTensor(args.batch_size).cuda()
-
+        label_local = torch.FloatTensor(args.batch_size).cuda()
         extract_content = FeatureExtractor(feat_model.features, [layers_map[args.content_layers]])
         extract_style = FeatureExtractor(feat_model.features,
                                          [layers_map[x.strip()] for x in args.style_layers.split(',')])
@@ -157,22 +165,24 @@ def main(args):
         model = {
             "netG": netG,
             "netD": netD,
+            "netD_local": netD_local,
             "criterion_gan": criterion_gan,
             "criterion_pixel_l": criterion_pixel_l,
             "criterion_pixel_ab": criterion_pixel_ab,
             "criterion_feat": criterion_feat,
             "criterion_style": criterion_style,
+            "criterion_texturegan": criterion_texturegan,
             "real_label": real_label,
             "fake_label": fake_label,
             "optimizerD": optimizerD,
+            "optimizerD_local": optimizerD_local,
             "optimizerG": optimizerG
         }
 
         for epoch in range(args.load_epoch, args.num_epoch):
             train(model, train_loader, val_loader, input_stack, target_img, target_texture,
-                  segment, label, extract_content, extract_style, loss_graph, vis, epoch, args)
-
-
+                  segment, label, label_local,extract_content, extract_style, loss_graph, vis, epoch, args)
+            #break
 if __name__ == '__main__':
     args = argparser.parse_arguments()
     main(args)
