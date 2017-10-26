@@ -33,7 +33,9 @@ def make_dataset(directory, opt):
     seg = sorted(seg)
     txt = glob.glob(osp.join(directory, opt + '_txt/*/*.jpg'))
     txt = sorted(txt)
-    return list(zip(img, skg, seg ,txt))
+    eroded_seg = glob.glob(osp.join(directory, 'eroded_' + opt + '_seg/*/*.jpg'))
+    eroded_seg = sorted(eroded_seg)
+    return list(zip(img, skg, seg , eroded_seg, txt))
 
 
 def pil_loader(path):
@@ -74,17 +76,18 @@ class ImageFolder(data.Dataset):
             tuple: (image, target) where target is class_index of the target class.
         """
         
-        img_path, skg_path, seg_path, txt_path = self.imgs[index]
+        img_path, skg_path, seg_path, eroded_seg_path, txt_path = self.imgs[index]
         
         img = self.loader(img_path)
         skg = self.loader(skg_path)
         seg = self.loader(seg_path)
+        eroded_seg = self.loader(eroded_seg_path)
         txt = self.loader(txt_path)
         
         if self.transform is not None:
-            img, skg, seg, txt = self.transform([img, skg, seg, txt])
+            img, skg, seg, eroded_seg, txt = self.transform([img, skg, seg, eroded_seg, txt])
             
-        return img, skg, seg, txt
+        return img, skg, seg, eroded_seg, txt
 
     def __len__(self):
         return len(self.imgs)
