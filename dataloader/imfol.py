@@ -67,7 +67,7 @@ class ImageFolder(data.Dataset):
                  loader=default_loader, erode_seg=True):
      
         self.root = root
-        self.imgs = make_dataset(root, opt)
+        self.imgs = make_dataset(root, opt, erode_seg=erode_seg)
         self.transform = transform
         self.target_transform = target_transform
         self.loader = loader
