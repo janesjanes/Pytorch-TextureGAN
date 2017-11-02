@@ -101,8 +101,10 @@ class ImageFolder(data.Dataset):
                 img, skg, seg, eroded_seg, txt = self.transform([img, skg, seg, eroded_seg, txt])
             else:
                 img, skg, seg, txt = self.transform([img, skg, seg, txt])
-            
+                eroded_seg = seg
+
         return img, skg, seg, eroded_seg, txt
+
 
     def __len__(self):
         return len(self.imgs)
