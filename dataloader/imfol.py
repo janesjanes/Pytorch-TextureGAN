@@ -23,7 +23,7 @@ def find_classes(directory):
     return classes, class_to_idx
 
 
-def make_dataset(directory, opt):
+def make_dataset(directory, opt, erode_seg=True):
     # opt: 'train' or 'val'
     img = glob.glob(osp.join(directory, opt + '_img/*/*.jpg'))
     img = sorted(img)
@@ -33,9 +33,13 @@ def make_dataset(directory, opt):
     seg = sorted(seg)
     txt = glob.glob(osp.join(directory, opt + '_txt/*/*.jpg'))
     txt = sorted(txt)
-    eroded_seg = glob.glob(osp.join(directory, 'eroded_' + opt + '_seg/*/*.jpg'))
-    eroded_seg = sorted(eroded_seg)
-    return list(zip(img, skg, seg , eroded_seg, txt))
+
+    if erode_seg:
+        eroded_seg = glob.glob(osp.join(directory, 'eroded_' + opt + '_seg/*/*.jpg'))
+        eroded_seg = sorted(eroded_seg)
+        return list(zip(img, skg, seg , eroded_seg, txt))
+    else:
+        return list(zip(img, skg, seg, txt))
 
 
 def pil_loader(path):
@@ -60,13 +64,14 @@ def default_loader(path):
 
 class ImageFolder(data.Dataset):
     def __init__(self, opt, root, transform=None, target_transform=None,
-                 loader=default_loader):
+                 loader=default_loader, erode_seg=True):
      
         self.root = root
         self.imgs = make_dataset(root, opt)
         self.transform = transform
         self.target_transform = target_transform
         self.loader = loader
+        self.erode_seg = erode_seg
 
     def __getitem__(self, index):
         """
@@ -75,17 +80,27 @@ class ImageFolder(data.Dataset):
         Returns:
             tuple: (image, target) where target is class_index of the target class.
         """
-        
-        img_path, skg_path, seg_path, eroded_seg_path, txt_path = self.imgs[index]
+
+        if self.erode_seg:
+            img_path, skg_path, seg_path, eroded_seg_path, txt_path = self.imgs[index]
+        else:
+            img_path, skg_path, seg_path, txt_path = self.imgs[index]
         
         img = self.loader(img_path)
         skg = self.loader(skg_path)
         seg = self.loader(seg_path)
-        eroded_seg = self.loader(eroded_seg_path)
         txt = self.loader(txt_path)
-        
+
+        if self.erode_seg:
+            eroded_seg = self.loader(eroded_seg_path)
+        else:
+            eroded_seg = None
+
         if self.transform is not None:
-            img, skg, seg, eroded_seg, txt = self.transform([img, skg, seg, eroded_seg, txt])
+            if self.erode_seg:
+                img, skg, seg, eroded_seg, txt = self.transform([img, skg, seg, eroded_seg, txt])
+            else:
+                img, skg, seg, txt = self.transform([img, skg, seg, txt])
             
         return img, skg, seg, eroded_seg, txt
 
