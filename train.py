@@ -257,8 +257,9 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
     vis.line(np.array(loss_graph["gpl"]), win='gpl', opts=dict(title='G-Pixel Loss-L'))
     vis.line(np.array(loss_graph["gpab"]), win='gpab', opts=dict(title='G-Pixel Loss-AB'))
     vis.line(np.array(loss_graph["d"]), win='d', opts=dict(title='D Loss'))
-    vis.line(np.array(loss_graph["dl"]), win='dl', opts=dict(title='D Local Loss'))
-    vis.line(np.array(loss_graph["gdl"]), win='gdl', opts=dict(title='G D Local Loss'))
+    if args.local_texture_size != -1:
+        vis.line(np.array(loss_graph["dl"]), win='dl', opts=dict(title='D Local Loss'))
+        vis.line(np.array(loss_graph["gdl"]), win='gdl', opts=dict(title='G D Local Loss'))
     
 def train(model, train_loader, val_loader, input_stack, target_img, target_texture,
           segment, label,label_local, extract_content, extract_style, loss_graph, vis, epoch, args):
@@ -696,12 +697,12 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             print('D local:', 'real real_acc', "%.2f" % realreal_acc.data[0], 'fake fake_acc', "%.2f" % fakefake_acc.data[0], 'fake real_acc', "%.2f" % fakereal_acc.data[0], 'D_acc', D_acc.data[0])
 
 
-            if i % args.save_every == 0:
-                save_network(netG, 'G', epoch, i, args)
-                save_network(netD, 'D', epoch, i, args)
-                save_network(netD_local, 'D_local', epoch, i, args)
+        if i % args.save_every == 0:
+            save_network(netG, 'G', epoch, i, args)
+            save_network(netD, 'D', epoch, i, args)
+            save_network(netD_local, 'D_local', epoch, i, args)
 
-            if i % args.visualize_every == 0:
-                visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graph, args)
+        if i % args.visualize_every == 0:
+            visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graph, args)
 
 
