@@ -81,10 +81,10 @@ def get_criterions(args):
         criterion_gan = nn.MSELoss()
 
     # criterion_l1 = nn.L1Loss()
-    criterion_pixel_l = nn.L1Loss()
-    criterion_pixel_ab = nn.L1Loss()
-    criterion_style = nn.L1Loss()
-    criterion_feat = nn.L1Loss()
+    criterion_pixel_l = nn.MSELoss()
+    criterion_pixel_ab = nn.MSELoss()
+    criterion_style = nn.MSELoss()
+    criterion_feat = nn.MSELoss()
     criterion_texturegan = nn.L1Loss()
 
     return criterion_gan, criterion_pixel_l, criterion_pixel_ab, criterion_style, criterion_feat, criterion_texturegan

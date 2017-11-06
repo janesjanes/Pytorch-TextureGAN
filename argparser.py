@@ -80,6 +80,7 @@ def parse_arguments():
     parser.add_argument('--batch_size', default=32, type=int, help="Training batch size. MUST BE EVEN NUMBER")
 
     parser.add_argument('--num_input_texture_patch', default=2,type=int)
+    parser.add_argument('--num_local_texture_patch', default=1,type=int)
 
     parser.add_argument('--color_space', default='lab', type=str, choices=['lab', 'rgb'],
                         help='lab|rgb')

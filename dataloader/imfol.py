@@ -31,7 +31,8 @@ def make_dataset(directory, opt, erode_seg=True):
     skg = sorted(skg)
     seg = glob.glob(osp.join(directory, opt + '_seg/*/*.jpg'))
     seg = sorted(seg)
-    txt = glob.glob(osp.join(directory, opt + '_txt/*/*.jpg'))
+    #txt = glob.glob(osp.join(directory, opt + '_txt/*/*.jpg'))
+    txt = glob.glob(osp.join(directory, opt + '_dtd_txt/*/*.jpg'))
     txt = sorted(txt)
 
     if erode_seg:

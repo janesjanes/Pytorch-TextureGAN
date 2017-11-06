@@ -443,31 +443,34 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             err_texturegan = 0
                         
         else: # local loss patch
-            patchsize = args.local_texture_size
-            
-            texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, outputlll)
-            gt_texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, targetlll)
-            
-            texture_patchl = gen_local_patch(patchsize, batch_size, eroded_seg, outputl)
-            gt_texture_patchl = gen_local_patch(patchsize, batch_size, eroded_seg, targetl)
-            
-            ################## Local Style Loss ############################
-            
-            output_style_feat = extract_style(texture_patch)
-            target_style_feat = extract_style(gt_texture_patch)
-            
-            gram = GramMatrix()
-
             err_style = 0
-            for m in range(len(output_style_feat)):
-                gram_y = gram(output_style_feat[m])
-                gram_s = gram(target_style_feat[m])
+            err_pixel_l = 0
+            patchsize = args.local_texture_size
+            for p in range(args.num_local_texture_patch):
+                texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, outputlll)
+                gt_texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, targetlll)
 
-                err_style += args.style_weight * criterion_style(gram_y, gram_s.detach())
+                texture_patchl = gen_local_patch(patchsize, batch_size, eroded_seg, outputl)
+                gt_texture_patchl = gen_local_patch(patchsize, batch_size, eroded_seg, targetl)
+
+                ################## Local Style Loss ############################
+
+                output_style_feat = extract_style(texture_patch)
+                target_style_feat = extract_style(gt_texture_patch)
+
+                gram = GramMatrix()
+
+
+                for m in range(len(output_style_feat)):
+                    gram_y = gram(output_style_feat[m])
+                    gram_s = gram(target_style_feat[m])
+
+                    err_style += args.style_weight * criterion_style(gram_y, gram_s.detach())
+
+                ################## Local Pixel L Loss ############################
+
+                err_pixel_l += args.pixel_weight_l * criterion_pixel_l(texture_patchl, gt_texture_patchl)
             
-            ################## Local Pixel L Loss ############################
-            
-            err_pixel_l = args.pixel_weight_l * criterion_pixel_l(texture_patchl, gt_texture_patchl)
             
             ################## Local D Loss ############################
             netD_local.zero_grad()
@@ -695,13 +698,13 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
                 loss_graph["dl"].append(0)
 
             print('D local:', 'real real_acc', "%.2f" % realreal_acc.data[0], 'fake fake_acc', "%.2f" % fakefake_acc.data[0], 'fake real_acc', "%.2f" % fakereal_acc.data[0], 'D_acc', D_acc.data[0])
-
+            if i % args.save_every == 0:
+                save_network(netD_local, 'D_local', epoch, i, args)
 
         if i % args.save_every == 0:
             save_network(netG, 'G', epoch, i, args)
             save_network(netD, 'D', epoch, i, args)
-            save_network(netD_local, 'D_local', epoch, i, args)
-
+            
         if i % args.visualize_every == 0:
             visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graph, args)
 
