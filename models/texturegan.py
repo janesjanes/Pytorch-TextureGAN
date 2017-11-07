@@ -171,7 +171,6 @@ class ResidualBlock(nn.Module):
         if self.downsample is not None:
             residual = self.downsample(x)
         if self.residual:
-            print residual
             out += residual
         out = self.relu(out)
 
