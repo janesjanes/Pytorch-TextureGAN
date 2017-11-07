@@ -303,8 +303,8 @@ def visualize_training(netG, val_loader,input_stack, target_img, target_texture,
         tar_img = vis_image(custom_transforms.denormalize_rgb(img.cpu()),
                             args.color_space)
 
-    out_final = [x*0 for x in skg_img] 
-    gt_final = [x*0 for x in skg_img] 
+    out_final = [x*0 for x in txt_img] 
+    gt_final = [x*0 for x in txt_img] 
     out_img = [x * 255 for x in out_img]  # (out_img*255)#.astype('uint8')
     skg_img = [x * 255 for x in skg_img]  # (out_img*255)#.astype('uint8')
     out_patch = [x * 255 for x in temp_out]
