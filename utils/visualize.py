@@ -29,6 +29,8 @@ def vis_patch(img, skg, texture_location, color='lab'):
     for i in range(batch_size):
         for text_loc in texture_location[i]:
             xcenter, ycenter, size = text_loc
+            xcenter = max(xcenter-int(size/2),0) + int(size/2)
+            ycenter = max(ycenter-int(size/2),0) + int(size/2)
             vis_skg[
                 i, :,
                 int(xcenter-size/2):int(xcenter+size/2),

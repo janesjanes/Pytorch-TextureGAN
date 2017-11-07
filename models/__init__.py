@@ -36,7 +36,7 @@ def load_network(model, network_label, epoch, iteration, args):
     dataset = args.data_path.split(os.sep)[-1]
     save_filename = "{0}_net_{1}_{2}_{3}.pth".format(network_label, args.model, epoch, iteration)
 
-    model_save_dir = osp.join(args.save_dir, dataset)
+    model_save_dir = osp.join(args.load_dir, dataset)
     save_path = osp.join(model_save_dir, save_filename)
     
     model_state = torch.load(save_path)

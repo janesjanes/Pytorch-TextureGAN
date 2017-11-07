@@ -99,11 +99,13 @@ def gen_local_patch(patch_size, batch_size, eroded_seg, img):
     eroded_seg[:,0,:,int(math.floor(h-patch_size/2)):h] = 0
     eroded_seg[:,0,int(math.floor(w-patch_size/2)):w,:] = 0
     
-    for i_bs in range(batch_size):
+    for i_bs in range(bs):
                 
         i_bs = int(i_bs)
         seg_index_size = eroded_seg[i_bs,0,:,:].view(-1).size()[0]
         seg_index = torch.arange(0,seg_index_size).cuda()
+        #import pdb; pdb.set_trace()
+        #print bs, batch_size
         seg_one = seg_index[eroded_seg[i_bs,0,:,:].view(-1)==1]
         if len(seg_one) != 0:
             random_select = int(rand_between(0, len(seg_one)-1))
@@ -143,7 +145,7 @@ def renormalize(img):
     return img
 
 
-def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graph, args):
+def visualize_training(netG, val_loader,input_stack, target_img, target_texture,segment, vis, loss_graph, args):
     imgs = []
     for ii, data in enumerate(val_loader, 0):
         img, skg, seg, eroded_seg, txt = data  # LAB with negeative value
@@ -155,7 +157,7 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
         eroded_seg = custom_transforms.normalize_seg(eroded_seg)
         
         bs, w, h = seg.size()
-
+        
         seg = seg.view(bs, 1, w, h)
         seg = torch.cat((seg, seg, seg), 1)
         
@@ -167,10 +169,15 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
         temp[:, 2, :, :] = 0  # torch.ones(seg[:,2,:,:].size())*(1-seg[:,2,:,:]).float()
 
         txt = txt.float() * seg.float() + temp
+      
+        patchsize = args.local_texture_size
+        batch_size = bs
+              
         # seg=custom_transforms.normalize_lab(seg)
         # norm to 0-1 minus mean
         if not args.use_segmentation_patch:
             seg.fill_(1)
+            #skg.fill_(0)
             eroded_seg.fill_(1)
         if args.input_texture_patch == 'original_image':
             inp, texture_loc = gen_input_rand(img, skg, eroded_seg[:, 0, :, :] * 100,
@@ -184,6 +191,7 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
         img = img.cuda()
         skg = skg.cuda()
         seg = seg.cuda()
+        eroded_seg = eroded_seg.cuda()
         txt = txt.cuda()
         inp = inp.cuda()
 
@@ -195,12 +203,55 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
 
         inputv = Variable(input_stack)
         targetv = Variable(target_img)
+        
+        gtimgv = Variable(target_img)
+        segv = Variable(segment)
+        txtv = Variable(target_texture)
 
         outputG = netG(inputv)
+        
+        outputl, outputa, outputb = torch.chunk(outputG, 3, dim=1)
+        #outputlll = (torch.cat((outputl, outputl, outputl), 1))
+        gtl, gta, gtb = torch.chunk(gtimgv, 3, dim=1)
+        txtl, txta, txtb = torch.chunk(txtv, 3, dim=1)
+        
+        gtab = torch.cat((gta, gtb), 1)
+        
+        if args.color_space == 'lab':
+            outputlll = (torch.cat((outputl, outputl, outputl), 1))
+            gtlll = (torch.cat((gtl, gtl, gtl), 1))
+            txtlll = torch.cat((txtl, txtl, txtl), 1)
+        elif args.color_space == 'rgb':
+            outputlll = outputG  # (torch.cat((outputl,outputl,outputl),1))
+            gtlll = gtimgv  # (torch.cat((targetl,targetl,targetl),1))
+            txtlll = txtv
+        if args.loss_texture == 'original_image':
+            targetl = gtl
+            targetab = gtab
+            targetlll = gtlll
+        else:
+            targetl = txtl
+            targetab = txtab
+            targetlll = txtlll
+       # import pdb; pdb.set_trace()
+        texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, outputlll)
+        gt_texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, targetlll)
+
 
     if args.color_space == 'lab':
         out_img = vis_image(custom_transforms.denormalize_lab(outputG.data.double().cpu()),
                             args.color_space)
+        temp_labout = custom_transforms.denormalize_lab(texture_patch.data.double().cpu())
+        temp_labout[:,1:3,:,:] = 0
+        
+        temp_labgt = custom_transforms.denormalize_lab(gt_texture_patch.data.double().cpu())
+        temp_labgt[:,1:3,:,:] = 0
+        temp_out =vis_image(temp_labout,args.color_space) #torch.cat((patches[0].data.double().cpu(),patches[0].data.double().cpu(),patches[0].data.double().cpu()),1)
+        #temp_out = (temp_out + 1 )/2
+                            
+        temp_gt =vis_image(temp_labgt,
+                            args.color_space) #torch.cat((patches[1].data.double().cpu(),patches[1].data.double().cpu(),patches[1].data.double().cpu()),1)
+
         if args.input_texture_patch == 'original_image':
             inp_img = vis_patch(custom_transforms.denormalize_lab(img.cpu()),
                                 custom_transforms.denormalize_lab(skg.cpu()),
@@ -213,6 +264,10 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
                                 args.color_space)
         tar_img = vis_image(custom_transforms.denormalize_lab(img.cpu()),
                             args.color_space)
+        skg_img = vis_image(custom_transforms.denormalize_lab(skg.cpu()),
+                            args.color_space)
+        txt_img = vis_image(custom_transforms.denormalize_lab(txt.cpu()),
+                            args.color_space)
     elif args.color_space == 'rgb':
 
         out_img = vis_image(custom_transforms.denormalize_rgb(outputG.data.double().cpu()),
@@ -224,24 +279,44 @@ def visualize_training(netG, val_loader, input_stack, target_img, segment, vis, 
         tar_img = vis_image(custom_transforms.denormalize_rgb(img.cpu()),
                             args.color_space)
 
+    out_final = [x*0 for x in skg_img] 
+    gt_final = [x*0 for x in skg_img] 
     out_img = [x * 255 for x in out_img]  # (out_img*255)#.astype('uint8')
+    skg_img = [x * 255 for x in skg_img]  # (out_img*255)#.astype('uint8')
+    out_patch = [x * 255 for x in temp_out]
+    gt_patch = [x * 255 for x in temp_gt]    # out_img=np.transpose(out_img,(2,0,1))
+    for t_i in range(bs):
+        #import pdb; pdb.set_trace()
+        patchsize = int(args.local_texture_size)
+        out_final[t_i][:,0:patchsize,0:patchsize] = out_patch[t_i][:,:,:]# .append(np.resize(out_patch[t_i], (3,w,h)))
+        gt_final[t_i][:,0:patchsize,0:patchsize] =gt_patch[t_i][:,:,:]#gt_final.append(np.resize(gt_patch[t_i], (3,w,h)))
+   
+    
     # out_img=np.transpose(out_img,(2,0,1))
 
+    txt_img = [x * 255 for x in txt_img]    
     inp_img = [x * 255 for x in inp_img]  # (inp_img*255)#.astype('uint8')
     # inp_img=np.transpose(inp_img,(2,0,1))
 
     tar_img = [x * 255 for x in tar_img]  # (tar_img*255)#.astype('uint8')
     # tar_img=np.transpose(tar_img,(2,0,1))
-
-    segment_img = vis_image((seg.cpu()), args.color_space)
-    segment_img = [x * 255 for x in segment_img]  # segment_img=(segment_img*255)#.astype('uint8')
+    #import pdb; pdb.set_trace()
+    
+    #segment_img = vis_image((eroded_seg.cpu()), args.color_space)
+    #import pdb; pdb.set_trace()
+    segment_img = [x * 255 for x in eroded_seg.cpu().numpy()]  # segment_img=(segment_img*255)#.astype('uint8')
     # segment_img=np.transpose(segment_img,(2,0,1))
-
+    #import pdb; pdb.set_trace()
     for i_ in range(len(out_img)):
-        imgs.append(segment_img[i_])
+        #import pdb; pdb.set_trace()
+        imgs.append(skg_img[i_])
+        imgs.append(txt_img[i_])
         imgs.append(inp_img[i_])
         imgs.append(out_img[i_])
+        imgs.append(segment_img[i_])
         imgs.append(tar_img[i_])
+        imgs.append(out_final[i_])
+        imgs.append(gt_final[i_])
 
     # for idx, img in enumerate(imgs):
     #     print(idx, type(img), img.shape)
@@ -439,6 +514,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             ################## Global Pixel L Loss ############################
              
             err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl, targetl)
+
             
             err_texturegan = 0
                         
@@ -446,6 +522,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             err_style = 0
             err_pixel_l = 0
             patchsize = args.local_texture_size
+             
             for p in range(args.num_local_texture_patch):
                 texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, outputlll)
                 gt_texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, targetlll)
@@ -602,62 +679,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
             realreal_acc = torch.mean(score)
 
-            x1 = int(rand_between(patchsize, args.image_size - patchsize))
-            y1 = int(rand_between(patchsize, args.image_size - patchsize))
-
-            x2 = int(rand_between(patchsize, args.image_size - patchsize))
-            y2 = int(rand_between(patchsize, args.image_size - patchsize))
-
-            labelv = Variable(label)
-            if args.color_space == 'lab':
-                outputD_local = netD_local(torch.cat((txtl[:, :, x1:(x1 + patchsize), y1:(y1 + patchsize)],txtl[:, :, x2:(x2 + patchsize), y2:(y2 + patchsize)]),1))#netD_local(targetl)
-
-            elif args.color_space == 'rgb':
-                outputD = netD(gtimgv)
-
-            label.resize_(outputD_local.data.size())
-            labelv = Variable(label.fill_(real_label))
-
-            errD_real_local = criterion_texturegan(outputD_local, labelv)
-            errD_real_local.backward()
-
-            score = Variable(torch.ones(batch_size))
-            _, cd, wd, hd = outputD_local.size()
-            D_output_size = cd * wd * hd
-
-            clamped_output_D = outputD_local.clamp(0, 1)
-            clamped_output_D = torch.round(clamped_output_D)
-            for acc_i in range(batch_size):
-                score[acc_i] = torch.sum(clamped_output_D[acc_i]) / D_output_size
-
-            realreal_acc = realreal_acc+torch.mean(score)
-            realreal_acc = realreal_acc/2
-
-            x1 = int(rand_between(patchsize, args.image_size - patchsize))
-            y1 = int(rand_between(patchsize, args.image_size - patchsize))
-
-            x2 = int(rand_between(patchsize, args.image_size - patchsize))
-            y2 = int(rand_between(patchsize, args.image_size - patchsize))
-
-            if args.color_space == 'lab':
-                outputD_local = netD_local(torch.cat((txtl[:, :, x1:(x1 + patchsize), y1:(y1 + patchsize)],txtl_inv[:, :, x2:(x2 + patchsize), y2:(y2 + patchsize)]),1))#outputD = netD(outputl.detach())
-            elif args.color_space == 'rgb':
-                outputD = netD(outputG.detach())
-            label.resize_(outputD_local.data.size())
-            labelv = Variable(label.fill_(fake_label))
-
-            errD_fake_local = criterion_gan(outputD_local, labelv)
-            errD_fake_local.backward(retain_variables=True)
-            score = Variable(torch.ones(batch_size))
-            _, cd, wd, hd = outputD_local.size()
-            D_output_size = cd * wd * hd
-
-            clamped_output_D = outputD_local.clamp(0, 1)
-            clamped_output_D = torch.round(clamped_output_D)
-            for acc_i in range(batch_size):
-                score[acc_i] = torch.sum(clamped_output_D[acc_i]) / D_output_size
-
-            fakereal_acc = torch.mean(1 - score)
+            
 
             x1 = int(rand_between(patchsize, args.image_size - patchsize))
             y1 = int(rand_between(patchsize, args.image_size - patchsize))
@@ -687,7 +709,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
             fakefake_acc = torch.mean(1 - score)
 
-            D_acc = (realreal_acc + fakereal_acc+fakefake_acc) / 3
+            D_acc = (realreal_acc +fakefake_acc) / 2
 
             if D_acc.data[0] < args.threshold_D_max:
                 # D_G_z1 = output.data.mean()
@@ -697,15 +719,16 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             else:
                 loss_graph["dl"].append(0)
 
-            print('D local:', 'real real_acc', "%.2f" % realreal_acc.data[0], 'fake fake_acc', "%.2f" % fakefake_acc.data[0], 'fake real_acc', "%.2f" % fakereal_acc.data[0], 'D_acc', D_acc.data[0])
-            if i % args.save_every == 0:
-                save_network(netD_local, 'D_local', epoch, i, args)
+            print('D local:', 'real real_acc', "%.2f" % realreal_acc.data[0], 'fake fake_acc', "%.2f" % fakefake_acc.data[0], 'D_acc', D_acc.data[0])
+            #if i % args.save_every == 0:
+             #   save_network(netD_local, 'D_local', epoch, i, args)
 
         if i % args.save_every == 0:
             save_network(netG, 'G', epoch, i, args)
             save_network(netD, 'D', epoch, i, args)
+            save_network(netD_local, 'D_local', epoch, i, args)
             
         if i % args.visualize_every == 0:
-            visualize_training(netG, val_loader, input_stack, target_img, segment, vis, loss_graph, args)
+            visualize_training(netG, val_loader, input_stack, target_img,target_texture, segment, vis, loss_graph, args)
 
 

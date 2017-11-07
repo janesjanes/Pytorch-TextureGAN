@@ -49,6 +49,50 @@ class Discriminator(nn.Module):
     def forward(self, x):
         return self.model(x)
 
+class LocalDiscriminator(nn.Module):
+    def __init__(self, input_nc, ndf, use_sigmoid):
+        super(LocalDiscriminator, self).__init__()
+
+        self.input_nc = input_nc
+        self.ndf = ndf
+        self.conv = nn.Conv2d
+        self.batch_norm = nn.BatchNorm2d
+        self.res_block = ResidualBlock
+
+        self.model = self.create_discriminator(use_sigmoid)
+
+    def create_discriminator(self, use_sigmoid):
+        norm_layer = self.batch_norm
+        ndf = self.ndf  # 32
+        self.res_block = ResidualBlock
+        
+        sequence = [
+            nn.Conv2d(self.input_nc, self.ndf, kernel_size=3, stride=2, padding=1),nn.InstanceNorm2d(ndf),
+            nn.LeakyReLU(0.2, True),
+
+            nn.Conv2d(self.ndf, self.ndf * 4, kernel_size=3, stride=2, padding=1),nn.InstanceNorm2d(ndf* 4),
+            nn.LeakyReLU(0.2, True),
+
+            #nn.Conv2d(self.ndf * 2, self.ndf * 8, kernel_size=5, stride=2, padding=1),
+            #nn.LeakyReLU(0.2, True),
+            #nn.Dropout(0.2),
+            
+            self.res_block(self.ndf * 4, self.ndf * 4),
+            self.res_block(self.ndf * 4, self.ndf * 4),
+
+            nn.Conv2d(self.ndf * 4, self.ndf * 2, kernel_size=3, stride=2, padding=1), nn.InstanceNorm2d(ndf* 2),
+            #nn.Dropout(0.2),
+
+            nn.Conv2d(self.ndf * 2, 1, kernel_size=3, stride=2, padding=1)
+        ]
+
+        if use_sigmoid:
+            sequence += [nn.Sigmoid()]
+
+        return nn.Sequential(*sequence)
+
+    def forward(self, x):
+        return self.model(x)
 
 class NLayerDiscriminator(nn.Module):
     def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d, use_sigmoid=False, gpu_ids=[]):

@@ -54,7 +54,7 @@ def get_models(args):
 
     if args.color_space == 'lab':
         netD = discriminator.Discriminator(1, 32, sigmoid_flag)
-        netD_local = discriminator.Discriminator(2, 32, sigmoid_flag)
+        netD_local = discriminator.LocalDiscriminator(2, 32, sigmoid_flag)
     elif args.color_space == 'rgb':
         netD = discriminator.Discriminator(3, 32, sigmoid_flag)
 
@@ -67,7 +67,7 @@ def get_models(args):
         netD.apply(weights_init)
     else:
         load_network(netD, 'D', args.load_epoch, args.load_D, args)
-
+        load_network(netD_local, 'D_local', args.load_epoch, args.load_D, args)
     return netG, netD, netD_local
 
 
@@ -85,14 +85,14 @@ def get_criterions(args):
     criterion_pixel_ab = nn.MSELoss()
     criterion_style = nn.MSELoss()
     criterion_feat = nn.MSELoss()
-    criterion_texturegan = nn.L1Loss()
+    criterion_texturegan = nn.MSELoss()
 
     return criterion_gan, criterion_pixel_l, criterion_pixel_ab, criterion_style, criterion_feat, criterion_texturegan
 
 
 def main(args):
     #with torch.cuda.device(args.gpu):
-    layers_map = {'relu4_2': '22', 'relu2_2': '8', 'relu3_2': '13'}
+    layers_map = {'relu4_2': '22', 'relu2_2': '8', 'relu3_2': '13','relu1_2': '4'}
 
     vis = visdom.Visdom(port=args.display_port)
 

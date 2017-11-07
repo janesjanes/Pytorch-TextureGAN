@@ -68,6 +68,9 @@ def parse_arguments():
 
     parser.add_argument('--image_size', default=128, type=int,
                         help='Training images size, after cropping')
+    parser.add_argument('--resize_to', default=300, type=int,
+                        help='Training images size, after cropping')
+                        
     parser.add_argument('--resize_max', default=1, type=float,
                         help='max resize, ratio of the original image, max value is 1')
     parser.add_argument('--resize_min', default=0.6, type=float,
@@ -118,6 +121,9 @@ def parse_arguments():
 
     parser.add_argument('--mode', default='texture', type=str, choices=['texture', 'scribbler'],
                         help='texture|scribbler')
+    
+    parser.add_argument('--visualize_mode', default='train', type=str, choices=['train', 'test'],
+                        help='train|test')
 
     parser.add_argument('--crop', default='random', type=str, choices=['random', 'center'],
                         help='random|center')

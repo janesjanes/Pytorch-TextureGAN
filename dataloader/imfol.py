@@ -4,6 +4,7 @@ from PIL import Image
 import glob
 import os
 import os.path as osp
+import random
 
 
 IMG_EXTENSIONS = [
@@ -33,7 +34,7 @@ def make_dataset(directory, opt, erode_seg=True):
     seg = sorted(seg)
     txt = glob.glob(osp.join(directory, opt + '_txt/*/*.jpg'))
     #txt = glob.glob(osp.join(directory, opt + '_dtd_txt/*/*.jpg'))
-    txt = sorted(txt)
+    random.shuffle(txt)
 
     if erode_seg:
         eroded_seg = glob.glob(osp.join(directory, 'eroded_' + opt + '_seg/*/*.jpg'))
