@@ -223,6 +223,7 @@ def visualize_training(netG, val_loader,input_stack, target_img, target_texture,
         input_stack.resize_as_(inp.float()).copy_(inp)
         target_img.resize_as_(img.float()).copy_(img)
         segment.resize_as_(seg.float()).copy_(seg)
+        target_texture.resize_as_(txt.float()).copy_(txt)
 
         inputv = Variable(input_stack)
         targetv = Variable(target_img)
