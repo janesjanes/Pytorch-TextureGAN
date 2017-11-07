@@ -28,8 +28,11 @@ def parse_arguments():
                         help='weight ratio for feature loss')
     parser.add_argument('--global_pixel_weight_l', default=0, type=float,
                         help='weight ratio for pixel loss for l channel')
+<<<<<<< HEAD
     parser.add_argument('--local_pixel_weight_l', default=1,  type=float,
                         help='pixel weight for local loss patch')
+=======
+>>>>>>> f1c11b0ad2f00f5984fba4bb70529358f04d626e
     parser.add_argument('--pixel_weight_ab', default=0, type=float,
                         help='weight ratio for pixel loss for ab channel')
     parser.add_argument('--pixel_weight_rgb', default=0, type=float,
@@ -100,6 +103,12 @@ def parse_arguments():
 
     parser.add_argument('--use_segmentation_patch', default=True, type=bool,
                         help='whether or not to inject noise into the network')
+<<<<<<< HEAD
+=======
+    
+    parser.add_argument('--local_pixel_weight_l', default=1,  type=float,
+                        help='pixel weight for local loss patch')
+>>>>>>> f1c11b0ad2f00f5984fba4bb70529358f04d626e
 
     parser.add_argument('--input_texture_patch', default='dtd_texture', type=str,
                         choices=['original_image', 'dtd_texture'],
