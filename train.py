@@ -522,6 +522,8 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             err_style = 0
             err_pixel_l = 0
             patchsize = args.local_texture_size
+            
+            netD_local.zero_grad()
              
             for p in range(args.num_local_texture_patch):
                 texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, outputlll)
@@ -549,16 +551,17 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
                 err_pixel_l += args.pixel_weight_l * criterion_pixel_l(texture_patchl, gt_texture_patchl)
             
             
-            ################## Local D Loss ############################
-            netD_local.zero_grad()
-            label_ = Variable(label)
+                ################## Local D Loss ############################
+                
+                label_ = Variable(label)
+                err_texturegan = 0
+            
+                outputD_local = netD_local(torch.cat((texture_patchl, gt_texture_patchl),1))
 
-            outputD_local = netD_local(torch.cat((texture_patchl, gt_texture_patchl),1))
+                label_local.resize_(outputD_local.data.size())
+                labelv_local = Variable(label_local.fill_(real_label))
 
-            label_local.resize_(outputD_local.data.size())
-            labelv_local = Variable(label_local.fill_(real_label))
-
-            err_texturegan = args.discriminator_local_weight * criterion_texturegan(outputD_local, labelv_local)
+                err_texturegan += args.discriminator_local_weight * criterion_texturegan(outputD_local, labelv_local)
             loss_graph["gdl"].append(err_texturegan.data[0])
         
         ####################################
