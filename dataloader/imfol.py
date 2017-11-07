@@ -34,6 +34,7 @@ def make_dataset(directory, opt, erode_seg=True):
     seg = sorted(seg)
     txt = glob.glob(osp.join(directory, opt + '_txt/*/*.jpg'))
     #txt = glob.glob(osp.join(directory, opt + '_dtd_txt/*/*.jpg'))
+
     random.shuffle(txt)
 
     if erode_seg:
