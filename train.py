@@ -125,7 +125,7 @@ def gen_local_patch(patch_size, batch_size, eroded_seg,seg, img):
         while torch.sum(seg[i_bs,0,xstart:xend,ystart:yend]) < k*patch_size*patch_size:
                 
             try:
-                k = k*0.8
+                k = k*0.5
                 if len(seg_one) != 0:
                     random_select = int(rand_between(0, len(seg_one)-1))
             
