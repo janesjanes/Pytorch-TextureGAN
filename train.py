@@ -216,6 +216,7 @@ def visualize_training(netG, val_loader,input_stack, target_img, target_texture,
         txtl, txta, txtb = torch.chunk(txtv, 3, dim=1)
         
         gtab = torch.cat((gta, gtb), 1)
+        txtab= torch.cat((txta, txtb), 1)
         
         if args.color_space == 'lab':
             outputlll = (torch.cat((outputl, outputl, outputl), 1))
@@ -548,7 +549,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
                 ################## Local Pixel L Loss ############################
 
-                err_pixel_l += args.pixel_weight_l * criterion_pixel_l(texture_patchl, gt_texture_patchl)
+                err_pixel_l += args.local_pixel_weight_l * criterion_pixel_l(texture_patchl, gt_texture_patchl)
             
             
                 ################## Local D Loss ############################

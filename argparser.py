@@ -98,6 +98,9 @@ def parse_arguments():
 
     parser.add_argument('--use_segmentation_patch', default=True, type=bool,
                         help='whether or not to inject noise into the network')
+    
+    parser.add_argument('--local_pixel_weight_l', default=1,  type=int,
+                        help='pixel weight for local loss patch')
 
     parser.add_argument('--input_texture_patch', default='dtd_texture', type=str,
                         choices=['original_image', 'dtd_texture'],
