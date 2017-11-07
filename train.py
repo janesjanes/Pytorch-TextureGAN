@@ -89,7 +89,7 @@ def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
         results[i, :, :, :] = res
     return results, texture_info
 
-def gen_local_patch(patch_size, batch_size, eroded_seg, img):
+def gen_local_patch(patch_size, batch_size, eroded_seg,seg, img):
     # generate local loss patch from eroded segmentation
     
     bs, c, w, h = img.size()
@@ -109,16 +109,39 @@ def gen_local_patch(patch_size, batch_size, eroded_seg, img):
         seg_one = seg_index[eroded_seg[i_bs,0,:,:].view(-1)==1]
         if len(seg_one) != 0:
             random_select = int(rand_between(0, len(seg_one)-1))
+            #import pdb; pdb.set_trace()
+            
             x,y = get_coor(seg_one[random_select], eroded_seg[i_bs,0,:,:].size())
+            #print x,y,i_bs
         else:
             x,y = (w/2, h/2)
             
-            xstart = (int)(x-patch_size/2)
-            ystart = (int)(y-patch_size/2)
-            xend = (int)(x+patch_size/2)
-            yend = (int)(y+patch_size/2)
+        xstart = (int)(x-patch_size/2)
+        ystart = (int)(y-patch_size/2)
+        xend = (int)(x+patch_size/2)
+        yend = (int)(y+patch_size/2)
+        
+        k = 1
+        while torch.sum(seg[i_bs,0,xstart:xend,ystart:yend]) < k*patch_size*patch_size:
+                
+            try:
+                k = k*0.8
+                if len(seg_one) != 0:
+                    random_select = int(rand_between(0, len(seg_one)-1))
             
-            texture_patch[i_bs,:,:,:] = img[i_bs, :, xstart:xend, ystart:yend]
+                    x,y = get_coor(seg_one[random_select], eroded_seg[i_bs,0,:,:].size())
+            
+                else:
+                    x,y = (w/2, h/2)
+                xstart = (int)(x-patch_size/2)
+                ystart = (int)(y-patch_size/2)
+                xend = (int)(x+patch_size/2)
+                yend = (int)(y+patch_size/2)
+            except:
+                break
+                
+            
+        texture_patch[i_bs,:,:,:] = img[i_bs, :, xstart:xend, ystart:yend]
         
     return texture_patch
 
@@ -235,8 +258,8 @@ def visualize_training(netG, val_loader,input_stack, target_img, target_texture,
             targetab = txtab
             targetlll = txtlll
        # import pdb; pdb.set_trace()
-        texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, outputlll)
-        gt_texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, targetlll)
+        texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg,seg, outputlll)
+        gt_texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg,seg, targetlll)
 
 
     if args.color_space == 'lab':
@@ -527,11 +550,11 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             netD_local.zero_grad()
              
             for p in range(args.num_local_texture_patch):
-                texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, outputlll)
-                gt_texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, targetlll)
+                texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg,seg, outputlll)
+                gt_texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg,seg, targetlll)
 
-                texture_patchl = gen_local_patch(patchsize, batch_size, eroded_seg, outputl)
-                gt_texture_patchl = gen_local_patch(patchsize, batch_size, eroded_seg, targetl)
+                texture_patchl = gen_local_patch(patchsize, batch_size, eroded_seg, seg,outputl)
+                gt_texture_patchl = gen_local_patch(patchsize, batch_size, eroded_seg,seg, targetl)
 
                 ################## Local Style Loss ############################
 
