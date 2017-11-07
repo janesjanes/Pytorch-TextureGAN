@@ -14,7 +14,7 @@ def parse_arguments():
     parser.add_argument('--gan', default='lsgan', type=str, choices=['dcgan', 'lsgan', 'wgan', 'improved wgan'],
                         help='dcgan|lsgan|wgan|improved wgan')  # todo wgan/improved wgan
 
-    parser.add_argument('--model', default='scribbler', type=str, choices=['scribbler', 'pix2pix','scribbler_dilate_128'],
+    parser.add_argument('--model', default='scribbler', type=str, choices=['scribbler', 'texturegan', 'pix2pix','scribbler_dilate_128'],
                         help='scribbler|pix2pix')
 
     parser.add_argument('--num_epoch', default=100, type=int,
@@ -24,20 +24,20 @@ def parse_arguments():
                         help='no. iteration to visualize the results')
 
     # all the weights ratio, might wanna make them sum to one
-    parser.add_argument('--feature_weight', default=0, type=float,
+    parser.add_argument('--feature_weight', default=0, type=int,
                         help='weight ratio for feature loss')
-    parser.add_argument('--global_pixel_weight_l', default=400, type=float,
+    parser.add_argument('--global_pixel_weight_l', default=0, type=int,
                         help='weight ratio for pixel loss for l channel')
-    parser.add_argument('--pixel_weight_ab', default=0, type=float,
+    parser.add_argument('--pixel_weight_ab', default=0, type=int,
                         help='weight ratio for pixel loss for ab channel')
-    parser.add_argument('--pixel_weight_rgb', default=0, type=float,
+    parser.add_argument('--pixel_weight_rgb', default=0, type=int,
                         help='weight ratio for pixel loss for ab channel')
 
-    parser.add_argument('--discriminator_weight', default=0, type=float,
+    parser.add_argument('--discriminator_weight', default=0, type=int,
                         help='weight ratio for the discriminator loss')
-    parser.add_argument('--discriminator_local_weight', default=2e3, type=float,
+    parser.add_argument('--discriminator_local_weight', default=0, type=int,
                         help='weight ratio for the discriminator loss')
-    parser.add_argument('--style_weight', default=1, type=float,
+    parser.add_argument('--style_weight', default=0, type=int,
                         help='weight ratio for the texture loss')
 
     # parser.add_argument('--gpu', default=[0], type=int, nargs='+',
