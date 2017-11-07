@@ -519,7 +519,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         labelv = Variable(label.fill_(real_label))
 
         err_gan = args.discriminator_weight * criterion_gan(outputD, labelv)
-        
+        err_pixel_l = 0
         if args.local_texture_size == -1:  # global, no loss patch
             
             ################## Global Style Loss ############################
@@ -545,7 +545,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
                         
         else: # local loss patch
             err_style = 0
-            err_pixel_l = 0
+            
             patchsize = args.local_texture_size
             
             netD_local.zero_grad()
