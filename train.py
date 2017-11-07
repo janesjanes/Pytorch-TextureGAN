@@ -94,11 +94,13 @@ def gen_local_patch(patch_size, batch_size, eroded_seg,seg, img):
     
     bs, c, w, h = img.size()
     texture_patch = img[:, :, 0:patch_size, 0:patch_size].clone()
-    eroded_seg[:,0,0:int(math.ceil(patch_size/2)),:] = 0
-    eroded_seg[:,0,:,0:int(math.ceil(patch_size/2))] = 0
-    eroded_seg[:,0,:,int(math.floor(h-patch_size/2)):h] = 0
-    eroded_seg[:,0,int(math.floor(w-patch_size/2)):w,:] = 0
-    
+
+    if patch_size != 1:
+        eroded_seg[:,0,0:int(math.ceil(patch_size/2)),:] = 0
+        eroded_seg[:,0,:,0:int(math.ceil(patch_size/2))] = 0
+        eroded_seg[:,0,:,int(math.floor(h-patch_size/2)):h] = 0
+        eroded_seg[:,0,int(math.floor(w-patch_size/2)):w,:] = 0
+
     for i_bs in range(bs):
                 
         i_bs = int(i_bs)
@@ -261,8 +263,9 @@ def visualize_training(netG, val_loader,input_stack, target_img, target_texture,
             targetab = txtab
             targetlll = txtlll
        # import pdb; pdb.set_trace()
-        texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg,seg, outputlll)
-        gt_texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg,seg, targetlll)
+
+        texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, outputlll)
+        gt_texture_patch = gen_local_patch(patchsize, batch_size, eroded_seg, targetlll)
 
 
     if args.color_space == 'lab':
