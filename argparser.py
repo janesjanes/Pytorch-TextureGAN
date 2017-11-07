@@ -24,20 +24,20 @@ def parse_arguments():
                         help='no. iteration to visualize the results')
 
     # all the weights ratio, might wanna make them sum to one
-    parser.add_argument('--feature_weight', default=0, type=int,
+    parser.add_argument('--feature_weight', default=0, type=float,
                         help='weight ratio for feature loss')
-    parser.add_argument('--global_pixel_weight_l', default=0, type=int,
+    parser.add_argument('--global_pixel_weight_l', default=0, type=float,
                         help='weight ratio for pixel loss for l channel')
-    parser.add_argument('--pixel_weight_ab', default=0, type=int,
+    parser.add_argument('--pixel_weight_ab', default=0, type=float,
                         help='weight ratio for pixel loss for ab channel')
-    parser.add_argument('--pixel_weight_rgb', default=0, type=int,
+    parser.add_argument('--pixel_weight_rgb', default=0, type=float,
                         help='weight ratio for pixel loss for ab channel')
 
-    parser.add_argument('--discriminator_weight', default=0, type=int,
+    parser.add_argument('--discriminator_weight', default=0, type=float,
                         help='weight ratio for the discriminator loss')
-    parser.add_argument('--discriminator_local_weight', default=0, type=int,
+    parser.add_argument('--discriminator_local_weight', default=0, type=float,
                         help='weight ratio for the discriminator loss')
-    parser.add_argument('--style_weight', default=0, type=int,
+    parser.add_argument('--style_weight', default=0, type=float,
                         help='weight ratio for the texture loss')
 
     # parser.add_argument('--gpu', default=[0], type=int, nargs='+',
@@ -99,7 +99,7 @@ def parse_arguments():
     parser.add_argument('--use_segmentation_patch', default=True, type=bool,
                         help='whether or not to inject noise into the network')
     
-    parser.add_argument('--local_pixel_weight_l', default=1,  type=int,
+    parser.add_argument('--local_pixel_weight_l', default=1,  type=float,
                         help='pixel weight for local loss patch')
 
     parser.add_argument('--input_texture_patch', default='dtd_texture', type=str,
