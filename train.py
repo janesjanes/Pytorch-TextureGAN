@@ -520,6 +520,9 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
         err_gan = args.discriminator_weight * criterion_gan(outputD, labelv)
         err_pixel_l = 0
+        ################## Global Pixel L Loss ############################
+             
+        err_pixel_l = args.global_pixel_weight_l * criterion_pixel_l(outputl, targetl)
         if args.local_texture_size == -1:  # global, no loss patch
             
             ################## Global Style Loss ############################
@@ -536,9 +539,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
                 err_style += args.style_weight * criterion_style(gram_y, gram_s.detach())
             
-            ################## Global Pixel L Loss ############################
-             
-            err_pixel_l = args.global_pixel_weight_l * criterion_pixel_l(outputl, targetl)
+            
 
             
             err_texturegan = 0
