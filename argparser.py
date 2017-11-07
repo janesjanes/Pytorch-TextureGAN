@@ -26,7 +26,7 @@ def parse_arguments():
     # all the weights ratio, might wanna make them sum to one
     parser.add_argument('--feature_weight', default=0, type=float,
                         help='weight ratio for feature loss')
-    parser.add_argument('--pixel_weight_l', default=400, type=float,
+    parser.add_argument('--global_pixel_weight_l', default=400, type=float,
                         help='weight ratio for pixel loss for l channel')
     parser.add_argument('--pixel_weight_ab', default=0, type=float,
                         help='weight ratio for pixel loss for ab channel')

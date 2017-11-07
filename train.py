@@ -514,7 +514,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             
             ################## Global Pixel L Loss ############################
              
-            err_pixel_l = args.pixel_weight_l * criterion_pixel_l(outputl, targetl)
+            err_pixel_l = args.global_pixel_weight_l * criterion_pixel_l(outputl, targetl)
 
             
             err_texturegan = 0
