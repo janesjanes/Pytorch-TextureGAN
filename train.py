@@ -691,7 +691,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
             labelv = Variable(label)
             if args.color_space == 'lab':
-                outputD_local = netD_local(torch.cat((txtl[:, :, x1:(x1 + patchsize), y1:(y1 + patchsize)],txtl[:, :, x2:(x2 + patchsize), y2:(y2 + patchsize)]),1))#netD_local(targetl)
+                outputD_local = netD_local(torch.cat((targetl[:, :, x1:(x1 + patchsize), y1:(y1 + patchsize)],targetl[:, :, x2:(x2 + patchsize), y2:(y2 + patchsize)]),1))#netD_local(targetl)
             elif args.color_space == 'rgb':
                 outputD = netD(gtimgv)
 
