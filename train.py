@@ -172,6 +172,8 @@ def visualize_training(netG, val_loader,input_stack, target_img, target_texture,
     imgs = []
     for ii, data in enumerate(val_loader, 0):
         img, skg, seg, eroded_seg, txt = data  # LAB with negeative value
+        if random.random() < 0.5:
+            txt = img
         # this is in LAB value 0/100, -128/128 etc
         img = custom_transforms.normalize_lab(img)
         skg = custom_transforms.normalize_lab(skg)
@@ -390,6 +392,8 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         netG.zero_grad()
 
         img, skg, seg, eroded_seg, txt = data  # LAB with negeative value
+        if random.random() < 0.5:
+            txt = img
         # output img/skg/seg rgb between 0-1
         # output img/skg/seg lab between 0-100, -128-128
         if args.color_space == 'lab':
