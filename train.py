@@ -95,7 +95,7 @@ def gen_local_patch(patch_size, batch_size, eroded_seg, seg, img):
     bs, c, w, h = img.size()
     texture_patch = img[:, :, 0:patch_size, 0:patch_size].clone()
 
-    if patch_size != 1:
+    if patch_size != -1:
         eroded_seg[:,0,0:int(math.ceil(patch_size/2)),:] = 0
         eroded_seg[:,0,:,0:int(math.ceil(patch_size/2))] = 0
         eroded_seg[:,0,:,int(math.floor(h-patch_size/2)):h] = 0
@@ -117,12 +117,19 @@ def gen_local_patch(patch_size, batch_size, eroded_seg, seg, img):
             #print x,y,i_bs
         else:
             x,y = (w/2, h/2)
-            
-        xstart = int(x-patch_size/2)
-        ystart = int(y-patch_size/2)
-        xend = int(x+patch_size/2)
-        yend = int(y+patch_size/2)
-        
+
+        if patch_size == -1:
+            xstart = 0
+            ystart = 0
+            xend = -1
+            yend = -1
+
+        else:
+            xstart = int(x-patch_size/2)
+            ystart = int(y-patch_size/2)
+            xend = int(x+patch_size/2)
+            yend = int(y+patch_size/2)
+
         k = 1
         while torch.sum(seg[i_bs,0,xstart:xend,ystart:yend]) < k*patch_size*patch_size:
                 
