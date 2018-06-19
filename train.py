@@ -7,6 +7,7 @@ from utils.visualize import vis_image, vis_patch
 import time
 #import cv2
 import math
+import random
 
 # all in one place funcs, need to organize these:
 # all in one place funcs, need to organize these:
