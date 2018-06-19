@@ -1,6 +1,6 @@
 import argparse
 
-def parse_arguments():
+def parse_arguments(*args):
     parser = argparse.ArgumentParser()
 
     ###############added options#######################################
@@ -117,7 +117,7 @@ def parse_arguments():
     
     ############################################################################
     ############################################################################
-    ############TODO: TO ADD #################################################################
+    ############Not Currently Using #################################################################
     parser.add_argument('--tv_weight', default=1, type=float,
                         help='weight ratio for total variation loss')
 
@@ -146,5 +146,7 @@ def parse_arguments():
                         help='load saved generator model from absolute location')
 
     ##################################################################################################################################
-
-    return parser.parse_args()
+    
+    return parser.parse_args(*args)
+    
+        
