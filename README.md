@@ -48,15 +48,15 @@ See more training details in section Train
 
 You can also load our pretrained models in section Download Models.
 
-- To view results and losses as the model trains, start a visdom server for the ‘display_port’ 
+To view results and losses as the model trains, start a visdom server for the ‘display_port’ 
 ```bash
 python -m visdom.server -port 7779
 ```
 
 
-- Test the model
+Test the model
 
-See our Ipython Notebook Test_script.ipynb
+- See our Ipython Notebook Test_script.ipynb
 
 ## Train
 TextureGAN proposes a two-stage training scheme. 
