@@ -4,7 +4,7 @@ This code is our PyTorch implementation of TextureGAN
 [[Project]](https://texturegan.eye.gatech.edu)   [[Arxiv]](https://arxiv.org/abs/1706.02823)
 
 <img src="examples.png" width="900px"/>
-
+ 
 TextureGAN is a generative adversarial network conditioned on sketch and colors/textures. Users “drag” one or more example textures onto sketched objects and the network realistically applies these textures to the indicated objects.
 
 ## Setup
