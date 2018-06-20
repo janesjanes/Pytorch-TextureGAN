@@ -18,7 +18,7 @@ TextureGAN is a generative adversarial network conditioned on sketch and colors/
 - Visdom
 - Ipython notebook
 - Pytorch 0.2
-- Numpy scikit-image etc.
+- Numpy scikit-image matplotlib etc.
 
 - Docker image with all the dependencies can be found in janesjanes/myenv:current
 
