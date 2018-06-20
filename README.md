@@ -95,9 +95,9 @@ The datasets we used for inputting texture patches are DTD Dataset and leather d
 
 ## Download Models
 Pre-trained models 
-- On the shoes dataset. 
-- <a href='https://s3-us-west-2.amazonaws.com/texturegan/textureD_final_allloss_handbag_3300.pth' > On the handbags dataset </a>
-- On the clothes dataset.
+- For shoes  
+- <a href='https://s3-us-west-2.amazonaws.com/texturegan/textureD_final_allloss_handbag_3300.pth' > For handbags </a>
+- For clothes
 
 ## Citation
 If you find it this code useful for your research, please cite: 
