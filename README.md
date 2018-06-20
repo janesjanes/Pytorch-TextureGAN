@@ -32,7 +32,7 @@ Download the training data:
 wget https://s3-us-west-2.amazonaws.com/texturegan/training_handbag.tar.gz
 tar -xvcf training_handbag.tar.gz
 ```
-For shoe: [coming soon]
+For shoe: https://s3-us-west-2.amazonaws.com/texturegan/training_shoe.tar.gz
 
 For cloth: https://s3-us-west-2.amazonaws.com/texturegan/training_cloth.tar.gz
 
