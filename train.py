@@ -9,8 +9,6 @@ import time
 import math
 import random
 
-# all in one place funcs, need to organize these:
-# all in one place funcs, need to organize these:
 def rand_between(a, b):
     return a + torch.round(torch.rand(1) * (b - a))[0]
 
@@ -41,8 +39,7 @@ def get_coor(index, size):
     index = int(index)
     #get original coordinate from flatten index for 3 dim size
     w,h = size
-    #print index,w,h,(index%(w*h))
-    #return (index/(w*h),(index%(w*h))/h, ((index%(w*h))%h))
+    
     return ((index%(w*h))/h, ((index%(w*h))%h))
 
 def gen_input_rand(img, skg, seg, size_min=40, size_max=60, num_patch=1):
