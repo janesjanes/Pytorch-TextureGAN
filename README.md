@@ -32,8 +32,9 @@ Download the training data:
 wget https://s3-us-west-2.amazonaws.com/texturegan/training_handbag.tar.gz
 tar -xvcf training_handbag.tar.gz
 ```
-For shoe:
-For cloth:
+For shoe: [coming soon]
+
+For cloth: [coming soon]
 
 - Train the model from scratch. See python main.py --help for training options. Example arguments (see the paper for the exact parameters value):
 ```bash
