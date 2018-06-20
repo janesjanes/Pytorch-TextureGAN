@@ -34,7 +34,9 @@ Download the training data (coming soon)
 - Train the model from scratch. See python main.py --help for training options. Example arguments (see the paper for the exact parameters value):
 ```bash
 python main.py --display_port 7779 --gpu 3 --model texturegan --feature_weight 5e3 --pixel_weight_ab 1e4 
---global_pixel_weight_l 5e5 --local_pixel_weight_l 0 --style_weight 0 --discriminator_weight 5e5 --discriminator_local_weight 7e5  --learning_rate 5e-4 --learning_rate_D 1e-4 --batch_size 36 --save_every 100 --num_epoch 100000 --save_dir [./save_dir] ---data_path [../../training_handbags_pretrain/] --learning_rate_D_local  1e-4 --local_texture_size 50 --patch_size_min 20 --patch_size_max 50 --num_input_texture_patch 1 --visualize_every 5 --num_local_texture_patch 5
+--global_pixel_weight_l 5e5 --local_pixel_weight_l 0 --style_weight 0 --discriminator_weight 5e5 --discriminator_local_weight 7e5  --learning_rate 5e-4 --learning_rate_D 1e-4 --batch_size 36 --save_every 100 --num_epoch 100000 --save_dir [./save_dir] 
+--data_path [../../training_handbags_pretrain/] --learning_rate_D_local  1e-4 --local_texture_size 50 --patch_size_min 20 
+--patch_size_max 50 --num_input_texture_patch 1 --visualize_every 5 --num_local_texture_patch 5
 ```
 Models will be saved to `./save_dir`  
 
@@ -56,12 +58,21 @@ See our Ipython Notebook Test_script.ipynb
 TextureGAN proposes a two-stage training scheme. 
 - The first training state is ground-truth pre-training. We extract input edge and texture patch from the same ground-truth image. Here, we show how to train the ground-truth pretrained model using a combination of pixel loss, color loss, feature loss, and adverserial loss. 
 ```bash
-python main.py --display_port 7775 --gpu 0 --model texturegan --feature_weight 10 --pixel_weight_ab 1e5 --global_pixel_weight_l 100 --style_weight 0 --discriminator_weight 10 --learning_rate 1e-3 --learning_rate_D 1e-4 --save_dir [/home/psangkloy3/handbag_texturedis_scratch] --data_path [./save_dir] --batch_size 16 --save_every 500 --num_epoch 100000 *--input_texture_patch original_image* --loss_texture original_image --local_texture_size 50 --discriminator_local_weight 100  --num_input_texture_patch 1
+python main.py --display_port 7775 --gpu 0 --model texturegan --feature_weight 10 --pixel_weight_ab 1e5 
+--global_pixel_weight_l 100 --style_weight 0 --discriminator_weight 10 --learning_rate 1e-3 --learning_rate_D 1e-4 --save_dir
+[/home/psangkloy3/handbag_texturedis_scratch] --data_path [./save_dir] --batch_size 16 --save_every 500 --num_epoch 100000 
+--input_texture_patch original_image --loss_texture original_image --local_texture_size 50 --discriminator_local_weight 100  
+--num_input_texture_patch 1
 ```
 
 - The second stage is external texture fine-tuning. This step is important for the network to reproduce textures for which we have no ground-truth output (e.g. a handbag with snakeskin texture). This time, we extract texture patch from an external texture dataset (see more in Section Download Dataset). We keep the feature and adversarial losses unchanged, but modify the pixel and color losses, to compare the generated result with the entire input texture from which input texture patches are extracted. We fine tune on previous pretrained model with addition of local texture loss by training a separate texture discriminator.  
 ```bash
-python main.py --display_port 7779 --load 1500 --load_D 1500 --load_epoch 222 --gpu 0 --model texturegan --feature_weight 5e3 --pixel_weight_ab 1e4 --global_pixel_weight_l 5e5 --local_pixel_weight_l 0 --style_weight 0 --discriminator_weight 5e5 --discriminator_local_weight 7e5  --learning_rate 5e-4 --learning_rate_D 1e-4 --batch_size 36 --save_every 100 --num_epoch 100000 --save_dir [/home/psangkloy3/skip_leather_handbag/] --load_dir [/home/psangkloy3/handbag_texturedis_scratch/] --data_path [./save_dir] --learning_rate_D_local  1e-4 --local_texture_size 50 --patch_size_min 20 --patch_size_max 50 --num_input_texture_patch 1 --visualize_every 5 *--input_texture_patch dtd_texture* --num_local_texture_patch 5
+python main.py --display_port 7779 --load 1500 --load_D 1500 --load_epoch 222 --gpu 0 --model texturegan --feature_weight 5e3
+--pixel_weight_ab 1e4 --global_pixel_weight_l 5e5 --local_pixel_weight_l 0 --style_weight 0 --discriminator_weight 5e5 
+--discriminator_local_weight 7e5  --learning_rate 5e-4 --learning_rate_D 1e-4 --batch_size 36 --save_every 100 --num_epoch
+100000 --save_dir [/home/psangkloy3/skip_leather_handbag/] --load_dir [/home/psangkloy3/handbag_texturedis_scratch/] 
+--data_path [./save_dir] --learning_rate_D_local  1e-4 --local_texture_size 50 --patch_size_min 20 --patch_size_max 50 
+--num_input_texture_patch 1 --visualize_every 5 <b>--input_texture_patch dtd_texture</b> --num_local_texture_patch 5
 ```
 
 ## Download Datasets
