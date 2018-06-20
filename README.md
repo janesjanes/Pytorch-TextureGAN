@@ -3,7 +3,7 @@
 This code is our PyTorch implementation of TextureGAN
 [[Project]](https://texturegan.eye.gatech.edu)   [[Arxiv]](https://arxiv.org/abs/1706.02823)
 
-<img src="imgs/examples.jpg" width="900px"/>
+<img src="examples.jpg" width="900px"/>
 
 TextureGAN is a generative adversarial network conditioned on sketch and colors/textures. Users “drag” one or more example textures onto sketched objects and the network realistically applies these textures to the indicated objects.
 
@@ -11,7 +11,7 @@ TextureGAN is a generative adversarial network conditioned on sketch and colors/
 
 ### Prerequisites
 - Linux or OSX
-- Python 2.7+
+- Python 2.7
 - NVIDIA GPU + CUDA CuDNN 
 
 ### Dependency
@@ -35,7 +35,9 @@ Download the training data (coming soon)
 python main.py --display_port 7779 --load 1500 --load_D 1500 --load_epoch 222 --gpu 3 --model texturegan --feature_weight 5e3 --pixel_weight_ab 1e4 --global_pixel_weight_l 5e5 --local_pixel_weight_l 0 --style_weight 0 --discriminator_weight 5e5 --discriminator_local_weight 7e5  --learning_rate 5e-4 --learning_rate_D 1e-4 --batch_size 36 --save_every 100 --num_epoch 100000 --save_dir ./save_dir --load_dir /home/psangkloy3/skip_leather_handbag/ --data_path ../../training_handbags_pretrain/ --learning_rate_D_local  1e-4 --local_texture_size 50 --patch_size_min 20 --patch_size_max 50 --num_input_texture_patch 1 --visualize_every 5 --num_local_texture_patch 5
 ```
 Models will be saved to `./save_dir`  
+
 See more training details in section Train
+
 You can also load our pretrained models in section Download Models.
 
 - To view results and losses as the model trains, start a visdom server for the ‘display_port’ 
@@ -45,6 +47,7 @@ python -m visdom.server -port 7780
 
 
 - Test the model
+
 See our IpyTorch Notebook Test_script.ipynb
 
 ## Train
