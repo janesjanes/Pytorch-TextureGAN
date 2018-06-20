@@ -17,7 +17,8 @@ TextureGAN is a generative adversarial network conditioned on sketch and colors/
 ### Dependency
 - Visdom
 - Ipython notebook
-- etc.
+- Pytorch 0.2 (torch and torchvision)
+- Numpy scikit-image matplotlib etc.
 
 - Docker image with all the dependencies can be found in janesjanes/myenv:current
 
@@ -32,7 +33,7 @@ Download the training data (coming soon)
 
 - Train the model from scratch. See python main.py --help for training options. Example arguments (see the paper for the exact parameters value):
 ```bash
-python main.py --display_port 7779 --load 1500 --load_D 1500 --load_epoch 222 --gpu 3 --model texturegan --feature_weight 5e3 --pixel_weight_ab 1e4 --global_pixel_weight_l 5e5 --local_pixel_weight_l 0 --style_weight 0 --discriminator_weight 5e5 --discriminator_local_weight 7e5  --learning_rate 5e-4 --learning_rate_D 1e-4 --batch_size 36 --save_every 100 --num_epoch 100000 --save_dir ./save_dir --load_dir /home/psangkloy3/skip_leather_handbag/ --data_path ../../training_handbags_pretrain/ --learning_rate_D_local  1e-4 --local_texture_size 50 --patch_size_min 20 --patch_size_max 50 --num_input_texture_patch 1 --visualize_every 5 --num_local_texture_patch 5
+python main.py --display_port 7779 --gpu 3 --model texturegan --feature_weight 5e3 --pixel_weight_ab 1e4 --global_pixel_weight_l 5e5 --local_pixel_weight_l 0 --style_weight 0 --discriminator_weight 5e5 --discriminator_local_weight 7e5  --learning_rate 5e-4 --learning_rate_D 1e-4 --batch_size 36 --save_every 100 --num_epoch 100000 --save_dir ./save_dir --load_dir /home/psangkloy3/skip_leather_handbag/ --data_path ../../training_handbags_pretrain/ --learning_rate_D_local  1e-4 --local_texture_size 50 --patch_size_min 20 --patch_size_max 50 --num_input_texture_patch 1 --visualize_every 5 --num_local_texture_patch 5
 ```
 Models will be saved to `./save_dir`  
 
@@ -48,7 +49,7 @@ python -m visdom.server -port 7780
 
 - Test the model
 
-See our IpyTorch Notebook Test_script.ipynb
+See our Ipython Notebook Test_script.ipynb
 
 ## Train
 TextureGAN proposes a two-stage training scheme. 
