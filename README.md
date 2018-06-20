@@ -29,7 +29,6 @@ cd texturegan
 ```
 - Prepare Datasets
 Download the training data (coming soon)
-```bash
 
 - Train the model from scratch. See python main.py --help for training options. Example arguments (see the paper for the exact parameters value):
 ```bash
